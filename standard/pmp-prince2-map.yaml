@@ -1,0 +1,79 @@
+# 17 知识领域 × PMP/PRINCE2 内容映射（知识卡片三源标签依据）
+# PRD 4.2 / 4.5 / 4.6；strength: strong=★★★ / partial=★★☆ / weak=★☆☆ / none=☆
+# pmp.fills = PRINCE2 弱处的补位内容；prince2.mechanisms = 注入知识卡片的治理机制
+
+planning:
+  pmp: {strength: strong, sources: [规划绩效域, 渐进明细, 滚动式规划]}
+  prince2: {strength: strong, theme: plans, mechanisms: [三级计划体系(项目/阶段/小组), 计划八要素, 例外计划]}
+  pmp_fills_here: [开发方法选择(预测/适应/混合)——独家补位, 敏捷仪式与交付节奏]
+scope:
+  pmp: {strength: strong, sources: [规划绩效域, 收集需求, WBS 100%原则, 需求追溯矩阵]}
+  prince2: {strength: partial, theme: plans, mechanisms: [产品分解结构PBS, 产品描述PD, 产品流程图PFD]}
+schedule:
+  pmp: {strength: strong, sources: [规划绩效域, CPM关键路径, 关键链, 进度压缩, PERT三点估算]}
+  prince2: {strength: partial, theme: plans+progress, mechanisms: [阶段计划, 时间容差]}
+quality:
+  pmp: {strength: strong, sources: [交付绩效域, 质量成本CoQ, 七大质量工具, DoD完成定义]}
+  prince2: {strength: strong, theme: quality, mechanisms: [质量路径(客户质量期望→验收标准→质量方法), 质量保证vs质量控制分离]}
+cost:
+  pmp: {strength: strong, sources: [度量绩效域, 估算四法(类比/参数/三点/自下而上), EVM挣值体系, EAC三公式]}
+  prince2: {strength: partial, theme: business_case, mechanisms: [商业论证预算, 成本容差]}
+resource:
+  pmp: {strength: strong, sources: [团队绩效域, 塔克曼阶梯, 激励理论族(马斯洛/赫茨伯格/麦克利兰), 资源规划]}
+  prince2: {strength: weak, note: 仅组织主题角色定义}
+communication:
+  pmp: {strength: strong, sources: [沟通模型, 沟通渠道计算, 分层沟通]}
+  prince2: {strength: weak, note: 散落于组织/计划主题}
+stakeholder:
+  pmp: {strength: strong, sources: [干系人绩效域, 权力利益方格, 参与度评估矩阵(不了解/抵制/中立/支持/领导)]}
+  prince2: {strength: strong, theme: organization, mechanisms: [三方治理(项目主管/高级用户/高级供应商), 项目保证独立性, 角色职责RACI]}
+procurement:
+  pmp: {strength: strong, sources: [项目工作绩效域, 供应商协作与合同监督, 采购全过程]}   # PRINCE2 声明不覆盖，PMP 主力
+  prince2: {strength: none, note: PRINCE2 明确不覆盖（靠高级供应商角色）}
+risk:
+  pmp: {strength: strong, sources: [不确定性绩效域, 不确定性分类学(偶然/认知/波动/模糊/复杂), EMV, 决策树, 蒙特卡洛, Cynefin复杂性框架]}
+  prince2: {strength: strong, theme: risk, mechanisms: [风险偏好与风险预算, 威胁5应对/机会4应对, 风险已发生=问题, 整体项目风险]}
+issue:
+  pmp: {strength: strong, sources: [项目工作绩效域, 问题→升级→解决闭环]}
+  prince2: {strength: strong, theme: change, mechanisms: [问题三类分类学(变更请求/不合格项/关注点)]}
+information:
+  pmp: {strength: partial, sources: [项目文件, OPA组织过程资产, 知识转移]}
+  prince2: {strength: strong, theme: management_products, mechanisms: [26个管理产品体系(基线/记录/报告三类)]}
+lessons_learned:
+  pmp: {strength: partial, sources: [度量绩效域, 项目收尾]}
+  prince2: {strength: partial, theme: principle+record, mechanisms: [吸取经验教训原则(贯穿全程而非仅收尾), 经验教训记录单]}
+change_control:
+  pmp: {strength: strong, sources: [交付绩效域, 整体变更控制]}
+  prince2: {strength: strong, theme: change, mechanisms: [CCB变更控制委员会, 变更预算分级授权, 变更影响五维评估, 基线管理]}
+reporting:
+  pmp: {strength: strong, sources: [度量绩效域, EVM全套指标(SV/CV/SPI/CPI/EAC/ETC/TCPI), 敏捷流量度量(周期/吞吐/WIP), 度量陷阱(古德哈特/虚荣指标)]}
+  prince2: {strength: strong, theme: progress, mechanisms: [容差六维度(时间/成本/质量/范围/风险/收益), 例外管理, 要点报告vs例外报告, 工作包机制]}
+benefits:
+  pmp: {strength: partial, sources: [价值交付系统, 交付绩效域(可交付物→成果→价值)]}
+  prince2: {strength: strong, theme: business_case, mechanisms: [商业论证三性验证(期望/可行/可实现), 动态基线每阶段验证, 收益评审计划, 输出→outcome→收益链条]}
+org_change:
+  pmp: {strength: partial, sources: [12原则之驱动变革, 适应性与韧性]}
+  prince2: {strength: none}
+  note: 主补位靠 thinking-coach（变革曲线/惯性/临界点）+ PMP
+
+# ============ 12 原则 → 29 素质指标映射（理论解释层，PRD 4.6.4） ============
+pmp_principles_to_competency:
+  成为勤勉恭谨的管家: integrity
+  团队协作: teamwork
+  与干系人有效互动: stakeholder_t
+  聚焦价值: [result_oriented, requirements_benefits]
+  系统性思考: strategy_tactics        # 与 thinking-coach S04 同构
+  展现领导力: leadership
+  根据环境进行裁剪: balance           # L5 选择与平衡的证据形式
+  将质量融入过程和成果: quality_t
+  驾驭复杂性: null                    # 对应经验维度"复杂项目"界定
+  优化风险应对: risk_opportunity
+  拥抱适应性和韧性: transformation_partial
+  为实现目标而驱动变革: transformation
+
+# ============ 度量→例外管线（PRD 4.6.5 洞察2，容差引擎依据） ============
+measurement_exception_pipeline:
+  formula_source: "PMP度量域(EVM: PV/EV/AC → SV/CV/SPI/CPI → EAC/ETC/TCPI)"
+  rule_source: "PRINCE2进展主题(六维容差+例外管理)"
+  flow: "工作台数据 → EVM计算(代码) → 容差比对(规则) → 超限触发「向上汇报」教练场景 → GROW W产物=例外报告"
+  default_tolerances: {time: "±10%", cost: "±10%", quality: "按项目设定", scope: "按项目设定", risk: "按项目设定", benefits: "按项目设定"}

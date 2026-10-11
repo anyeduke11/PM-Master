@@ -1,0 +1,203 @@
+# GB/T 41831-2022《项目管理专业人员能力评价要求》结构化数据
+# 本文件是 PM-Master 的评级唯一依据（系统宪法）：
+#   - 评估引擎、出题器、差距分析、等级自适应全部读此文件
+#   - 代码零等级硬编码（PRD D8 / 6.5）
+# 依据：国标原文 OCR（GB-T41831-2022_ocr_raw.txt），已人工校对关键数字
+# 口径说明：
+#   - 素质指标共 29 项（环境5+个人10+技术14），"需求、目标与收益"为单一复合指标
+#   - 认知深度：know=知道领会 / apply=应用分析 / integrate=整合评价
+#   - 通道：project=项目和项目群组管理 / pmo=项目管理办公室
+# 注意：5.6.4.2（L5-PMO 经验）OCR 部分数字模糊处已按上下文推断并标注 TODO 复核
+
+meta:
+  standard: GB/T 41831-2022
+  name: 项目管理专业人员能力评价要求
+  issued: 2022-10-12
+  committee: 全国项目管理标准化技术委员会 (SAC/TC 343)
+  references: [GB/T 23691, GB/T 37507, ISO 21502, ICB4]
+
+# ============ 等级定义（表1） ============
+levels:
+  L1:
+    name: 第一级 项目管理专业辅助人员
+    short: 辅助人员
+    responsibility: 对项目经理指定的某一工作目标负责；处理项目管理专业领域的部分管理工作，以被分配任务为导向
+  L2:
+    name: 第二级 初级项目管理专业人员
+    short: 初级
+    responsibility: 对一般项目目标的实现负责；借助职能管理者力量组织团队分解目标，实现预期的一般项目目标
+  L3:
+    name: 第三级 中级项目管理专业人员
+    short: 中级
+    responsibility: 对复杂项目目标的实现负责；借助组织中高层力量，建立受控项目环境，实现预期的复杂项目目标
+  L4:
+    name: 第四级 高级项目管理专业人员
+    short: 高级
+    responsibility: 对组织的一个具体战略目标实现负责；以成果和收益为导向，在混乱中建立秩序，实现战略预期的成果和收益；可独立策划引导国际项目
+  L5:
+    name: 第五级 专家级项目管理专业人员
+    short: 专家级
+    responsibility: 对组织总体经营目标和整体战略规划落地的结果负责；以价值为导向，激活赋能整个组织；推动高层集体决策；策划组织国际竞争力
+
+# ============ 知识维度：17 领域 × 5 级认知深度矩阵 ============
+# 深度值含义：know < apply < integrate
+knowledge_domains:
+  planning:            {name: 计划管理,        depth: {L1: know, L2: apply, L3: apply, L4: apply, L5: integrate}}
+  scope:               {name: 范围管理,        depth: {L1: apply, L2: apply, L3: apply, L4: apply, L5: integrate}}
+  schedule:            {name: 进度管理,        depth: {L1: apply, L2: apply, L3: apply, L4: apply, L5: integrate}}
+  quality:             {name: 质量管理,        depth: {L1: apply, L2: apply, L3: apply, L4: integrate, L5: integrate}}
+  cost:                {name: 成本管理,        depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  resource:            {name: 资源管理,        depth: {L1: know, L2: apply, L3: integrate, L4: integrate, L5: integrate}}
+  communication:       {name: 沟通管理,        depth: {L1: know, L2: apply, L3: apply, L4: integrate, L5: integrate}}
+  stakeholder:         {name: 项目利益相关方管理, depth: {L1: know, L2: apply, L3: apply, L4: integrate, L5: integrate}}
+  procurement:         {name: 采购管理,        depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  risk:                {name: 风险管理,        depth: {L1: know, L2: apply, L3: apply, L4: integrate, L5: integrate}}
+  issue:               {name: 问题管理,        depth: {L1: know, L2: apply, L3: apply, L4: integrate, L5: integrate}}
+  information:         {name: 信息和文档管理,  depth: {L1: know, L2: apply, L3: apply, L4: integrate, L5: integrate}}
+  lessons_learned:     {name: 经验教训学习,    depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  change_control:      {name: 变更控制,        depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  reporting:           {name: 汇报,           depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  benefits:            {name: 收益管理,        depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  org_change:          {name: 管理组织变革,    depth: {L1: know, L2: know, L3: apply, L4: apply, L5: integrate}}
+  # L5 附加：熟悉项目管理相关国家标准及项目管理能力标准（b条）
+
+# ============ 素质维度：29 指标 × 5 级 × 双通道要求 ============
+# required_at: 该级要求此指标；levels 内 project/pmo 为双通道各自要求
+competencies:
+  # --- 环境能力 5 ---
+  strategy:          {name: 战略,               category: environmental, note: 战略理解并转化为管理要素}
+  governance:        {name: 治理、结构与流程,    category: environmental}
+  compliance:        {name: 遵循的要求、标准与规则, category: environmental}
+  power_interest:    {name: 权力与利益,          category: environmental}
+  culture_value:     {name: 文化与价值,          category: environmental}
+  # --- 个人能力 10 ---
+  self_reflection:   {name: 自我反思与自我管理,  category: personal}
+  integrity:         {name: 诚信与可靠,          category: personal, machine_readable: action_item_completion_rate}
+  communication:     {name: 人际沟通,            category: personal}
+  engagement:        {name: 关系与参与度,        category: personal}
+  leadership:        {name: 领导力,             category: personal}
+  teamwork:          {name: 团队合作,            category: personal}
+  conflict_crisis:   {name: 冲突与危机,          category: personal}
+  strategy_tactics:  {name: 谋略,               category: personal}
+  negotiation:       {name: 谈判,               category: personal}
+  result_oriented:   {name: 结果导向,            category: personal, machine_readable: tolerance_delivery_rate}
+  # --- 技术能力 14 ---
+  planning_pm:       {name: 策划,               category: technical}       # PMO 通道为主
+  requirements_benefits: {name: 需求、目标与收益, category: technical}
+  scope_t:           {name: 范围,               category: technical}
+  time:              {name: 时间,               category: technical}
+  organization_info: {name: 组织与信息,          category: technical}
+  quality_t:         {name: 质量,               category: technical}
+  finance:           {name: 财务,               category: technical, machine_readable: evm_deviation_records}
+  resource_t:        {name: 资源,               category: technical}
+  procurement_t:     {name: 采购与伙伴关系,      category: technical}
+  plan_control:      {name: 计划与控制,          category: technical, machine_readable_partial: tolerance_engine_logs}
+  risk_opportunity:  {name: 风险与机会,          category: technical}
+  stakeholder_t:     {name: 利益相关方,          category: technical}
+  transformation:    {name: 变革与转型,          category: technical}
+  balance:           {name: 选择与平衡,          category: technical}
+
+# 各级素质要求（对照国标 5.2.3 ~ 5.6.3，双通道）
+competency_requirements:
+  L1:
+    project: [integrity, communication, teamwork, result_oriented]            # 环境无
+    pmo:     [integrity, communication, teamwork, result_oriented]
+    technical_project: [scope_t, time, quality_t]
+    technical_pmo:     [scope_t, time, quality_t]
+  L2:
+    project: [compliance, self_reflection, integrity, communication, result_oriented, teamwork]
+    pmo:     [compliance, self_reflection, integrity, communication, result_oriented, teamwork]
+    technical_project: [scope_t, time, quality_t, resource_t, plan_control]
+    technical_pmo:     [scope_t, time, quality_t, resource_t, plan_control]
+  L3:
+    project: [compliance, self_reflection, integrity, communication, teamwork, conflict_crisis, strategy_tactics, negotiation, result_oriented]
+    pmo:     [compliance, self_reflection, integrity, teamwork, conflict_crisis, strategy_tactics, negotiation, result_oriented]
+    technical_project: [requirements_benefits, scope_t, time, quality_t, resource_t, procurement_t, plan_control, risk_opportunity, stakeholder_t]
+    technical_pmo:     [requirements_benefits, scope_t, time, quality_t, resource_t, procurement_t, plan_control, risk_opportunity, stakeholder_t]
+  L4:
+    project: [compliance, power_interest, self_reflection, integrity, communication, engagement, leadership, teamwork, conflict_crisis, strategy_tactics, negotiation, result_oriented]
+    pmo:     [strategy, governance, compliance, power_interest, self_reflection, integrity, communication, negotiation]
+    technical_project: [requirements_benefits, scope_t, time, quality_t, finance, resource_t, procurement_t, plan_control, risk_opportunity, stakeholder_t, transformation]
+    technical_pmo:     [planning_pm, requirements_benefits, organization_info, quality_t, finance, resource_t, procurement_t, plan_control, risk_opportunity, stakeholder_t, transformation, balance]
+  L5:
+    project: [compliance, power_interest, self_reflection, integrity, communication, engagement, leadership, teamwork, conflict_crisis, strategy_tactics, negotiation, result_oriented]
+    pmo:     [strategy, governance, compliance, power_interest, culture_value, self_reflection, integrity, communication, engagement, leadership, teamwork, conflict_crisis, strategy_tactics, negotiation, result_oriented]
+    technical_project: [requirements_benefits, scope_t, time, organization_info, quality_t, finance, resource_t, procurement_t, plan_control, risk_opportunity, stakeholder_t, transformation, balance]
+    technical_pmo:     [planning_pm, requirements_benefits, scope_t, time, organization_info, quality_t, finance, resource_t, procurement_t, plan_control, risk_opportunity, stakeholder_t, transformation, balance]
+
+# ============ 经验维度：硬指标（双通道） ============
+experience_requirements:
+  L1:
+    project: [{metric: pm_experience_years, op: ">=", value: 1, desc: 1年及以上管理或参与项目经验}]
+    pmo:     [{metric: pm_experience_years, op: ">=", value: 1, desc: 1年及以上管理或参与项目经验}]
+  L2:
+    project:
+      - {metric: work_years, op: ">=", value: 3, desc: 3年及以上工作经验}
+      - {metric: pm_domain_years, op: ">=", value: 2, desc: 2年及以上项目管理领域工作经验}
+      - {metric: pm_years, op: ">=", value: 1, desc: 1年及以上项目经理经验}
+      - {metric: normal_projects_as_lead, op: ">=", value: 2, desc: 作为负责人管理过至少2个一般项目并达成预期目标}
+    pmo:
+      - {metric: work_years, op: ">=", value: 3, desc: 3年及以上工作经验}
+      - {metric: pm_domain_years, op: ">=", value: 2, desc: 2年及以上项目管理领域工作经验}
+      - {metric: pmo_years, op: ">=", value: 1, desc: 1年及以上PMO工作经验}
+      - {metric: process_optimizations, op: ">=", value: 1, desc: 作为PM或核心成员参与过1次及以上流程优化并达成预期目标}
+  L3:
+    project:
+      - {metric: pm_domain_years, op: ">=", value: 5, desc: 5年及以上项目管理领域工作经验}
+      - {metric: pm_years, op: ">=", value: 3, desc: 3年及以上项目经理或项目群组经理经验}
+      - {metric: projects_achieved, op: ">=", value: 5, unit: 一般项目, alt: {metric: complex_projects_as_lead, op: ">=", value: 2}, desc: 作为负责人管理过至少5个一般项目或2个复杂项目并达成预期目标}
+      - {metric: knowledge_contributions, op: ">=", value: 1, desc: 对组织知识资产积累和能力提升有贡献（案例分享/培训授课等）}
+    pmo:
+      - {metric: pm_domain_years, op: ">=", value: 5, desc: 5年及以上项目管理领域工作经验}
+      - {metric: pmo_years, op: ">=", value: 2, desc: 2年及以上PMO工作经验}
+      - {metric: process_optimizations, op: ">=", value: 3, desc: 作为PM或核心成员参与过3次及以上流程优化并达成预期目标}
+      - {metric: knowledge_contributions, op: ">=", value: 1, desc: 知识贡献}
+  L4:
+    project:
+      - {metric: pm_domain_years, op: ">=", value: 8, desc: 8年及以上项目管理领域工作经验}
+      - {metric: pm_years, op: ">=", value: 5, desc: 5年及以上项目经理或项目群组经理经验}
+      - {metric: complex_projects_as_lead, op: ">=", value: 5, alt: {metric: programs_as_lead, op: ">=", value: 2}, desc: 作为负责人管理过5个及以上复杂项目或2个及以上项目群组并达成预期目标}
+      - {metric: knowledge_contributions, op: ">=", value: 3, level: 较多, desc: 较多知识贡献（案例分享/培训授课/参与企业或行业标准建设等）}
+    pmo:
+      - {metric: pm_domain_years, op: ">=", value: 8, desc: 8年项目管理领域工作经验}
+      - {metric: pmo_lead_years, op: ">=", value: 2, desc: 2年及以上PMO负责人、项目管理部门负责人或项目管理专家经验}
+      - {metric: programs_as_lead, op: ">=", value: 1, desc: 承担过1次及以上项目群组经理角色}
+      - {metric: pm_system_building, op: ">=", value: 2, desc: 作为核心成员参与2次及以上项目管理体系建设}
+      - {metric: knowledge_contributions, op: ">=", value: 3, level: 较多, desc: 较多知识贡献}
+  L5:
+    project:
+      - {metric: pm_domain_years, op: ">=", value: 10, desc: 10年及以上项目管理领域工作经验}
+      - {metric: pm_years, op: ">=", value: 8, desc: 8年及以上项目经理或项目群组经理经验}
+      - {metric: complex_projects_as_lead, op: ">=", value: 10, alt: {metric: programs_as_lead, op: ">=", value: 6}, desc: 作为负责人管理过至少10个复杂项目或6个项目群组并达成预期目标}
+      - {metric: knowledge_contributions, op: ">=", value: 5, level: 丰富, desc: 丰富知识贡献（案例分享/培训授课/参与国家或行业标准制定等）}
+    pmo:
+      - {metric: pm_domain_years, op: ">=", value: 10, desc: 10年及以上项目管理领域工作经验}        # 已校对（400/500dpi 双PSM交叉）
+      - {metric: pmo_lead_years, op: ">=", value: 5, desc: 5年及以上PMO负责人、项目管理部门负责人或项目管理专家经验}  # 已校对
+      - {metric: portfolio_years, op: ">=", value: 2, desc: 2年及以上项目组合管理经验}              # 已校对
+      - {metric: portfolio_roles, op: ">=", value: 1, desc: 承担过1次及以上项目组合管理角色, confidence: low}  # b条：OCR仅辨"承担过?次"，次数低置信
+      - {metric: knowledge_contributions, op: ">=", value: 5, level: 丰富, desc: 丰富知识贡献}
+
+# ============ 评价方法（6.2，供评估引擎参考口径） ============
+evaluation:
+  dimensions: [knowledge, competency, experience]   # 综合等级 = min(三维等级)（短板原则）
+  methods: [笔试, 现场考试, 评审]
+  principles:
+    - 兼顾学历与工作经验
+    - 逐级申请和评价
+    - 同类国内证书可互认
+  by_level:
+    L1_L3: 单选题/不定项选择题评定；L3 含情景主观题
+    L4: 现场考试+评审（情景主观题+创新论述；评审含重大项目/论文/著作/课题/标准/奖励）
+    L5: 现场考试+评审（理论实务/技能运用/指导能力/综合分析解决重大难题；评审含省级以上要素）
+
+# ============ 等级自适应产品口径（PRD 6.5 补充，非国标内容） ============
+product_adaptation:
+  journey: {L1: 学会干活, L2: 独立带项目, L3: 驾驭复杂, L4: 经营组织, L5: 维持与传承}
+  coach_unlock: {L1: 微训练+单模型, L2: 六场景+中级组合, L3: 全场景+高级组合, L4: +C13例外应对/C14干系人博弈, L5: 全部+带教场景}
+  workbench_mode: {L1: 任务工作台, L2: 一般项目四件套, L3: 复杂项目+容差预警, L4: 群组视图+战略门控, L5: 组合治理+维持监测}
+  question_depth:
+    L1: [know, apply]      # 范围/进度/质量 apply，其余 know
+    L2: [know, apply]
+    L3: [apply, integrate]
+    L4: [apply, integrate]
+    L5: [integrate]

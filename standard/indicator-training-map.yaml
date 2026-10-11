@@ -1,0 +1,207 @@
+# 29 素质指标 × 训练来源映射（教练推荐与雷达"补法建议"依据）
+# PRD 4.7 / 4.7.5 / 4.9；coach.scenes 为 PM 教练场景入口，model_combos 为组合模板
+# machine_readable: 该指标行为分可纯代码核算（优先采信）
+# R4.1 WP3：workbench 段为工作台派生口径配置（延续 pmbok_ka_domain 的工程映射先例，零硬编码）
+
+workbench:
+  high_power_threshold: 7   # 干系人高权力阈值（1-10 分制，PMP 权力/利益方格三档近似）
+
+coach_scenarios:   # 14 场景全量（v4.0 扩充：6 基础 PM 高频 + 2 L4 专属 + 6 全量阶段）
+  # --- 高频实战（L2 解锁） ---
+  report:    {name: 向上汇报, combo: C11, indicators: [communication, result_oriented, strategy_tactics]}
+  negotiate: {name: 资源谈判, combo: C04, indicators: [negotiation, power_interest]}
+  conflict:  {name: 团队冲突, combo: [C01, C04], indicators: [conflict_crisis, teamwork, leadership]}
+  risk_dec:  {name: 风险决策, combo: C08, indicators: [risk_opportunity, strategy_tactics]}
+  change:    {name: 变更博弈, combo: C02, indicators: [plan_control, stakeholder_t]}
+  retro:     {name: 项目复盘, combo: C06, indicators: [self_reflection, teamwork]}
+  # --- L4 专属（群组/治理场景） ---
+  exception: {name: 例外应对, combo: C13, unlock: L4, indicators: [risk_opportunity, communication, result_oriented]}
+  stakeholder_game: {name: 干系人博弈, combo: C14, unlock: L4, indicators: [power_interest, engagement, negotiation]}
+  # --- 全量阶段场景（L3 逐步解锁；覆盖立项→收尾→群组→战略） ---
+  kickoff:   {name: 项目立项策划, combo: C10, unlock: L3, indicators: [requirements_benefits, strategy_tactics], note: 三性验证/S形曲线定位/护城河}
+  milestone: {name: 阶段门控评审, combo: C02, unlock: L3, indicators: [plan_control, result_oriented], note: 继续/转向/终止决策+沉没成本检查}
+  handover:  {name: 交付与验收, combo: C05, unlock: L2, indicators: [quality_t, stakeholder_t], note: 验收标准前置核查+帕累托聚焦关键交付}
+  incentive: {name: 团队激励设计, combo: C09, unlock: L3, indicators: [leadership, resource_t], note: 需求层次诊断+皮格马利翁+社会认同}
+  portfolio: {name: 项目组合权衡, combo: C06, unlock: L4, indicators: [balance, strategy], note: 选择与平衡（L5 核心）+系统思考}
+  lessons:   {name: 经验教训萃取, combo: C01, unlock: L2, indicators: [self_reflection, plan_control], note: 双环学习+可复用条件提炼→知识贡献证据}
+
+indicators:
+  # ===== 环境能力 5 =====
+  strategy:
+    training: {scenarios: [retro], micro: [阶段门控"继续/转向"检查], models: [护城河, S形曲线, 转型, 情景分析]}
+    sources: {pmp: 价值交付系统+组合对齐, prince2: 商业论证与战略一致+群组蓝图}
+    evidence: [立项论证, 组合方案, 战略对齐分析]
+  governance:
+    training: {scenarios: [change], micro: [流程优化任务归档], models: [惯性, 强制函数]}
+    sources: {pmp: 项目工作绩效域(过程裁剪), prince2: 组织主题(三方治理/项目保证)+7流程+26管理产品}
+    evidence: [治理方案, 流程优化记录]      # 流程优化=国标经验硬指标证据
+  compliance:
+    training: {scenarios: [], micro: [基线变更合规检查单], models: [确认偏误]}
+    sources: {pmp: 管家原则(合规内控), prince2: 变更主题基线管理+质量保证}
+    evidence: [合规检查单, 审计响应, 基线变更记录]
+    machine_readable_partial: change_compliance_rate
+  power_interest:
+    training: {scenarios: [negotiate, report], micro: [干系人地图权力视图], models: [博弈论, 囚徒困境, 承诺]}
+    sources: {pmp: 干系人绩效域权力利益方格, prince2: 组织主题委员会权力结构}
+    evidence: [干系人地图, 升级决策记录]
+  culture_value:
+    training: {scenarios: [retro], micro: [变革方案文化评估], models: [马斯洛需求层次]}
+    sources: {pmp: 管家原则+团队绩效域, prince2: 弱}
+    evidence: [变革方案文化评估, 跨文化团队案例]
+  # ===== 个人能力 10 =====
+  self_reflection:
+    training: {scenarios: [retro], micro: [每会话结束元提示], models: [元认知, 成长型思维, 冒名顶替综合征, 费曼学习法]}
+    sources: {pmp: null, prince2: null}      # thinking-coach 独占
+    evidence: [教练复盘会话记录, 改进计划执行率]
+  integrity:
+    training: {scenarios: [], micro: [行动项逾期提醒], models: []}
+    sources: {pmp: 管家原则, prince2: null}
+    evidence: [按期交付行为, 主动披露坏消息]
+    machine_readable: action_item_completion_rate
+  communication:
+    training: {scenarios: [report], micro: [周报对话式修改], models: [金字塔原理, 框架效应]}
+    sources: {pmp: 干系人绩效域沟通模型, prince2: 散落}
+    evidence: [汇报框架产物, 纪要质量, 教练场景评分]
+  engagement:
+    training: {scenarios: [negotiate], micro: [参与度差距行动计划], models: [互惠, 以牙还牙]}
+    sources: {pmp: 干系人绩效域参与度矩阵(主力), prince2: 组织主题干系人地图}
+    evidence: [参与度差距分析, 地图维护记录]
+  leadership:
+    training: {scenarios: [conflict], micro: [激励方案生成], models: [皮格马利翁效应, 马斯洛需求层次]}
+    sources: {pmp: 团队绩效域(服务型领导/激励理论族/冲突五法)主力, prince2: 角色定义}
+    evidence: [团队阶段诊断, 激励方案, 领导复盘]
+  teamwork:
+    training: {scenarios: [conflict], micro: [RACI生成], models: [囚徒困境]}
+    sources: {pmp: 团队绩效域塔克曼, prince2: 组织主题RACI}
+    evidence: [RACI产物, 跨职能协作案例]
+  conflict_crisis:
+    training: {scenarios: [conflict], micro: [冲突复盘模板], models: [博弈论, 以牙还牙, 囚徒困境]}
+    sources: {pmp: 团队绩效域冲突五法, prince2: 风险主题危机=已发生威胁+升级机制}
+    evidence: [冲突复盘, 危机应对记录, 教练场景评分]
+  strategy_tactics:
+    training: {scenarios: [change, risk_dec], micro: [问题登记5Why提示], models: [第一性原理, 逆向思维, 帕累托法则, 重新定义问题, 情景分析, 二阶思维]}
+    sources: {pmp: 项目工作绩效域过程改进, prince2: null}
+    evidence: [复杂问题解决方案, 应对创新记录]
+  negotiation:
+    training: {scenarios: [negotiate], micro: [供应商评分解读], models: [BATNA, 互惠, 承诺, 锚定效应]}
+    sources: {pmp: 采购谈判技术(PMBOK6工具), prince2: 变更主题变更预算授权空间}
+    evidence: [谈判方案, 资源获取成果, 合同条款成果]
+  result_oriented:
+    training: {scenarios: [report], micro: [容差预警处理], models: [SMART, PDCA, 成本收益分析]}
+    sources: {pmp: 聚焦价值原则, prince2: 进展主题容差+例外}
+    evidence: [交付达成率, 收益实现记录]
+    machine_readable: tolerance_delivery_rate
+  # ===== 技术能力 14 =====
+  planning_pm:
+    training: {scenarios: [], micro: [立项向导/群组蓝图], models: [重新定义问题, 第一性原理]}
+    sources: {pmp: 项目章程/商业论证(PMBOK6整合), prince2: 启动流程+商业论证(主力)}
+    evidence: [立项论证, 章程, 群组蓝图设计]
+  requirements_benefits:
+    training: {scenarios: [retro], micro: [需求"价值假设"必填], models: [重新定义问题, 情景分析, 产品市场匹配]}
+    sources: {pmp: 交付绩效域需求追溯矩阵, prince2: 商业论证主题(收益最强)}
+    evidence: [需求文件, 收益地图, 收益实现跟踪]
+    machine_readable_partial: benefit_realization_rate
+  scope_t:
+    training: {scenarios: [], micro: [WBS/PBS向导], models: [帕累托法则]}
+    sources: {pmp: 规划绩效域WBS/收集需求(主力), prince2: 计划主题PBS/PD}
+    evidence: [WBS/PBS产物, 范围基线变更记录]
+  time:
+    training: {scenarios: [], micro: [关键路径分析], models: [临界点]}
+    sources: {pmp: 规划绩效域CPM/关键链(主力), prince2: 阶段计划+时间容差}
+    evidence: [进度计划, 关键路径分析, 偏差处理]
+  organization_info:
+    training: {scenarios: [], micro: [报告矩阵/纪要归档], models: [强制函数]}
+    sources: {pmp: 项目工作绩效域OPA/知识转移, prince2: 组织主题+26管理产品(最强)}
+    evidence: [组织结构图, 报告矩阵, 信息流设计]
+  quality_t:
+    training: {scenarios: [], micro: [质量检查单/验收], models: [确认偏误]}
+    sources: {pmp: 交付绩效域CoQ/七大工具(主力), prince2: 质量主题质量路径}
+    evidence: [质量标准文件, 验收记录, 缺陷分析]
+    machine_readable_partial: defect_rate
+  finance:
+    training: {scenarios: [], micro: [EVM自动计算], models: [成本收益分析, 预期值]}
+    sources: {pmp: 度量绩效域EVM+估算四法(主力), prince2: 商业论证预算+成本容差}
+    evidence: [预算方案, EVM报告, 偏差处理]
+    machine_readable: evm_deviation_records
+  resource_t:
+    training: {scenarios: [conflict], micro: [资源冲突预警], models: [马斯洛需求层次, 帕累托法则]}
+    sources: {pmp: 团队绩效域资源规划/塔克曼(主力), prince2: 仅角色(弱)}
+    evidence: [资源计划, 资源冲突解决, 团队建设方案]
+  procurement_t:
+    training: {scenarios: [negotiate], micro: [供应商跟踪清单], models: [BATNA, 互惠, 以牙还牙]}
+    sources: {pmp: 项目工作绩效域供应商协作(主力), prince2: 不覆盖}
+    evidence: [采购策略, 供应商评估, 合同管理记录]
+  plan_control:
+    training: {scenarios: [change], micro: [容差引擎/例外计划], models: [决策矩阵, 情景分析, 飞轮效应, A/B测试]}
+    sources: {pmp: 规划绩效域滚动规划, prince2: 计划主题三级计划+进展主题容差例外(最强)}
+    evidence: [计划体系, 例外计划, 纠偏记录]
+    machine_readable_partial: tolerance_engine_logs
+  risk_opportunity:
+    training: {scenarios: [risk_dec], micro: [风险新建二阶提问/EMV字段], models: [二阶思维, 期望值, 决策树, 情景分析, 逆向思维, 基础比率谬误]}
+    sources: {pmp: 不确定性绩效域(分类学/EMV/蒙特卡洛)主力, prince2: 风险主题(偏好/威胁5机会4)}
+    evidence: [风险登记册, 风险决策记录, 机会捕获案例]
+    machine_readable_partial: emv_data
+  stakeholder_t:
+    training: {scenarios: [report, negotiate], micro: [干系人地图维护], models: [博弈论, 互惠, 护城河]}
+    sources: {pmp: 干系人绩效域参与度矩阵(主力), prince2: 组织主题三方治理结构}
+    evidence: [干系人地图, 沟通计划, 参与度改进记录]
+  transformation:
+    training: {scenarios: [change], micro: [变革阻力清单], models: [惯性, 临界点, 强制函数, 转型, 跨越鸿沟]}
+    sources: {pmp: 12原则驱动变革+适应韧性, prince2: 弱}
+    evidence: [变革方案, 阻力处理记录, 转型成效]
+  balance:
+    training: {scenarios: [retro], micro: [裁剪决策记录], models: [决策矩阵, 预期值, 机会成本, 帕累托法则]}
+    sources: {pmp: 裁剪原则+项目组合概念, prince2: 组合层商业论证优先级}
+    evidence: [组合权衡决策, 资源平衡记录, 裁剪决策记录]
+
+# ===== 知识域 → 素质指标映射（R3.1 情景分按指标细分依据） =====
+# 情景题（drill_records.domain）→ 该域考察的素质指标；域分反馈到对应指标的「情景层」，
+# 未列出的指标不施用情景分（回退全局均值），避免「练一个域、29 指标全涨」的失真。
+domain_indicators:
+  planning:         [planning_pm, plan_control]
+  scope:            [scope_t, requirements_benefits]
+  schedule:         [time, plan_control]
+  quality:          [quality_t]
+  cost:             [finance]
+  resource:         [resource_t, teamwork]
+  communication:    [communication]
+  stakeholder:      [stakeholder_t, engagement, power_interest]
+  procurement:      [procurement_t, negotiation]
+  risk:             [risk_opportunity]
+  issue:            [conflict_crisis, strategy_tactics]
+  information:      [organization_info]
+  lessons_learned:  [self_reflection, strategy_tactics]
+  change_control:   [governance, compliance, plan_control]
+  reporting:        [communication, result_oriented, integrity]
+  benefits:         [requirements_benefits, result_oriented, balance, strategy]
+  org_change:       [transformation, culture_value, leadership]
+
+# ===== PMBOK 中文知识域 → 国标 17 知识域 key（R3.5 WP8：ITTO 实操并入 K 维 40% 与闭环训练信号须归一到域 key） =====
+# itto_processes.ka 为 PMBOK 十域中文名，growth_links/knowledge_cards.domain 为 gbt41831 knowledge_domains 英文 key；
+# 不归一则 ittoDomainScores 永不命中（K 维实操层失效）、markTrained 永不命中（实操信号不进闭环）。映射为最近似口径（v1）。
+pmbok_ka_domain:
+  整合: change_control
+  范围: scope
+  进度: schedule
+  成本: cost
+  质量: quality
+  资源: resource
+  沟通: communication
+  风险: risk
+  采购: procurement
+  相关方: stakeholder
+
+# ===== 模型掌握度（费曼 M0-M3，PRD 4.9.2） =====
+model_mastery:
+  M0: {name: 未接触, judge: 无记录}
+  M1: {name: 已认识, judge: 会话中被推荐并讲解}
+  M2: {name: 会应用, judge: GROW R/O 阶段产出引用该模型}
+  M3: {name: 能教授, judge: W产物形成可分享方法论卡, side_effect: 计入成长记录知识贡献}
+
+# ===== 组合难度分层（原生 thinking-coach 规则） =====
+combo_unlock:
+  初学: {usage: "<10次", allow: 单模型}
+  成长: {usage: "10-30次", allow: [C03, C05, C09, C11, C12]}
+  进阶: {usage: "30-60次", allow: [C01, C02, C04, C06, C07, C08, C10]}
+  精通: {usage: ">60次", allow: 自由组合}
+  pm_exclusive: {C13: 例外应对, C14: 干系人博弈, unlock_level: L4}

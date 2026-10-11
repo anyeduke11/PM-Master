@@ -1,0 +1,35 @@
+# PM-Master 独立仓库（与父级 ~/Documents 仓库隔离）
+# 配方：/* 忽根级 → 放行需要的父目录 → /server/* 重排除 → 再放行子白名单
+/*
+!/.gitignore
+!/README.md
+!/PRD.md
+!/AGENTS.md
+!/pm.sh
+!/standard/
+!/GB-T41831-2022_ocr_raw.txt
+!/demo/
+!/server/
+/server/*
+!/server/src/
+!/server/scripts/
+!/server/test/
+!/server/package.json
+!/server/.env.example
+!/web/
+/web/*
+!/web/src/
+!/web/package.json
+!/web/vite.config.js
+!/web/index.html
+# 永不入库（双保险，任意层级）
+.env
+.env.enc
+server/data/
+node_modules/
+.logs/
+.pids/
+.backups/
+*.log
+.DS_Store
+.ocr_tmp/

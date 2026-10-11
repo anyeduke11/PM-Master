@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM-Master · 项目经理成长工作台</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root{
+  --paper:#f7f4ec;          /* 宣纸底 */
+  --paper-2:#efe9db;        /* 深一档纸色 */
+  --ink:#26231e;            /* 墨色主字 */
+  --ink-2:#5c564a;          /* 次级字 */
+  --ink-3:#8a8271;          /* 弱字 */
+  --cinnabar:#c0392b;       /* 朱砂强调 */
+  --cinnabar-soft:#e8d5d0;
+  --navy:#1f3a5f;           /* 藏青数据 */
+  --navy-soft:#d8e0ea;
+  --gold:#a8842c;           /* 印金 */
+  --line:#d9d2c0;
+  --ok:#3d7a4f;
+  --warn:#b07d2b;
+  --danger:#b03a2e;
+  --serif:"Songti SC","STSong","Noto Serif SC",serif;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono","JetBrains Mono",Menlo,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:14px;overflow:hidden}
+::selection{background:var(--cinnabar);color:#fff}
+
+/* ===== 布局骨架 ===== */
+#app{display:grid;grid-template-columns:200px 1fr 340px;grid-template-rows:52px 1fr;height:100vh}
+header{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--ink);color:var(--paper)}
+header .seal{width:30px;height:30px;background:var(--cinnabar);color:#fff;font-family:var(--serif);display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:15px;font-weight:700;letter-spacing:1px}
+header h1{font-family:var(--serif);font-size:17px;font-weight:700;letter-spacing:2px}
+header .lv{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:#cfc8b8}
+header .lv b{color:var(--gold);font-family:var(--serif)}
+header .avatar{width:26px;height:26px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
+
+/* 左侧导航 */
+nav{background:var(--paper-2);border-right:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column;gap:2px}
+nav .sec{font-size:11px;color:var(--ink-3);padding:10px 18px 4px;letter-spacing:2px}
+nav a{display:flex;align-items:center;gap:10px;padding:10px 18px;color:var(--ink-2);text-decoration:none;font-size:13.5px;border-left:3px solid transparent;cursor:pointer}
+nav a:hover{background:rgba(0,0,0,.04);color:var(--ink)}
+nav a.on{background:#fff;border-left-color:var(--cinnabar);color:var(--ink);font-weight:600}
+nav a .ico{width:18px;text-align:center;opacity:.85}
+nav .badge{margin-left:auto;background:var(--cinnabar);color:#fff;font-size:10px;border-radius:8px;padding:1px 6px}
+
+/* 主内容 */
+main{overflow-y:auto;padding:24px 28px;position:relative}
+main::-webkit-scrollbar{width:8px}
+main::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.page{display:none;animation:fadein .25s ease}
+.page.on{display:block}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* 右侧教练侧边栏 */
+aside{border-left:1px solid var(--line);background:#fffdf7;display:flex;flex-direction:column}
+aside .as-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+aside .as-head .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+aside .as-head b{font-family:var(--serif);font-size:14px}
+aside .as-head span{font-size:11px;color:var(--ink-3)}
+#asMsgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+#asMsgs::-webkit-scrollbar{width:6px}
+#asMsgs::-webkit-scrollbar-thumb{background:var(--line)}
+.msg{max-width:92%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.65;white-space:pre-wrap}
+.msg.ai{background:var(--paper-2);border:1px solid var(--line);align-self:flex-start;border-top-left-radius:2px}
+.msg.me{background:var(--navy);color:#fff;align-self:flex-end;border-top-right-radius:2px}
+.msg.sys{align-self:center;background:none;color:var(--ink-3);font-size:11.5px;border:1px dashed var(--line);border-radius:6px;padding:4px 10px}
+.msg .tag{display:inline-block;font-size:10px;background:var(--cinnabar-soft);color:var(--cinnabar);border-radius:4px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+.typing{align-self:flex-start;display:flex;gap:4px;padding:10px 14px}
+.typing i{width:5px;height:5px;border-radius:50%;background:var(--ink-3);animation:tp 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}
+.typing i:nth-child(3){animation-delay:.3s}
+@keyframes tp{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-4px);opacity:1}}
+#asInput{display:flex;border-top:1px solid var(--line);background:#fff}
+#asInput textarea{flex:1;border:none;resize:none;padding:11px 12px;font-size:13px;font-family:var(--sans);background:transparent;outline:none;height:64px;line-height:1.5}
+#asInput button{width:56px;border:none;background:var(--cinnabar);color:#fff;font-size:16px;cursor:pointer}
+#asInput button:hover{background:#a93226}
+
+/* ===== 通用组件 ===== */
+.crumb{font-size:12px;color:var(--ink-3);margin-bottom:14px;letter-spacing:1px}
+h2.pt{font-family:var(--serif);font-size:22px;letter-spacing:2px;margin-bottom:4px}
+p.psub{color:var(--ink-2);font-size:13px;margin-bottom:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(38,35,30,.05)}
+.card h3{font-family:var(--serif);font-size:15px;margin-bottom:12px;letter-spacing:1px;display:flex;align-items:center;gap:8px}
+.card h3 .zh-seal{font-size:10px;background:var(--cinnabar);color:#fff;padding:2px 6px;border-radius:3px;font-family:var(--sans);font-weight:400;letter-spacing:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.mt16{margin-top:16px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:7px;font-size:13px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--ink-2)}
+.btn.pri{background:var(--cinnabar);border-color:var(--cinnabar);color:#fff}
+.btn.pri:hover{background:#a93226}
+.btn.navy{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.sm{padding:4px 10px;font-size:12px}
+.pill{display:inline-block;font-size:11px;border-radius:10px;padding:2px 9px;border:1px solid}
+.pill.ok{color:var(--ok);border-color:#bcd4c2;background:#eef5ef}
+.pill.warn{color:var(--warn);border-color:#e4d3b0;background:#f8f1e2}
+.pill.danger{color:var(--danger);border-color:#e3c1bc;background:#f9eceA}
+.pill.navy{color:var(--navy);border-color:#bfcbe0;background:#eef2f8}
+
+/* 进度徽章 L4→L5 */
+.lvtrack{display:flex;align-items:center;gap:0;margin:8px 0 2px}
+.lvtrack .st{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px}
+.lvtrack .st i{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;color:var(--ink-3);font-family:var(--serif)}
+.lvtrack .st span{font-size:10px;color:var(--ink-3);white-space:nowrap}
+.lvtrack .st.done i{border-color:var(--ok);color:var(--ok)}
+.lvtrack .st.cur i{border-color:var(--cinnabar);background:var(--cinnabar);color:#fff;box-shadow:0 0 0 4px var(--cinnabar-soft)}
+.lvtrack .st.cur span{color:var(--cinnabar);font-weight:600}
+.lvtrack .bar{flex:0 0 34px;height:2px;background:var(--line)}
+.lvtrack .bar.done{background:var(--ok)}
+
+/* 差距列表 */
+.gaprow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.gaprow:last-child{border:none}
+.gaprow .nm{flex:1}
+.gaprow .bar{flex:0 0 120px;height:6px;background:var(--paper-2);border-radius:3px;overflow:hidden}
+.gaprow .bar i{display:block;height:100%;border-radius:3px}
+.gaprow .v{font-size:11px;color:var(--ink-3);font-family:var(--mono);width:60px;text-align:right}
+
+/* 表格 */
+table.tb{width:100%;border-collapse:collapse;font-size:13px}
+table.tb th{text-align:left;font-weight:600;color:var(--ink-2);font-size:12px;padding:8px 10px;border-bottom:2px solid var(--ink);white-space:nowrap}
+table.tb td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.tb tr:hover td{background:#faf8f1}
+
+/* 教练室场景卡 */
+.scgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sccard{border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;background:#fff;transition:all .15s;position:relative}
+.sccard:hover{border-color:var(--cinnabar);transform:translateY(-2px);box-shadow:0 4px 12px rgba(192,57,43,.1)}
+.sccard .em{font-size:22px}
+.sccard b{display:block;margin:6px 0 3px;font-size:14px}
+.sccard p{font-size:12px;color:var(--ink-3);line-height:1.5;min-height:36px}
+.sccard .mod{margin-top:8px;display:flex;gap:4px;flex-wrap:wrap}
+.sccard .mod span{font-size:10px;background:var(--navy-soft);color:var(--navy);border-radius:3px;padding:1px 5px}
+
+/* GROW 对话区（教练室主区） */
+.growwrap{display:grid;grid-template-columns:300px 1fr;gap:16px}
+#growStage{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:480px}
+.growbar{display:flex;gap:4px;margin-bottom:12px}
+.growbar .gseg{flex:1;text-align:center;padding:7px 0;font-size:12px;border-radius:6px;background:var(--paper-2);color:var(--ink-3);position:relative}
+.growbar .gseg.done{background:#e8f0e9;color:var(--ok)}
+.growbar .gseg.cur{background:var(--cinnabar);color:#fff;font-weight:600}
+.growbar .gseg .stg{display:block;font-size:10px;opacity:.7}
+#growMsgs{flex:1;overflow-y:auto;padding:6px 4px;display:flex;flex-direction:column;gap:12px}
+#growMsgs::-webkit-scrollbar{width:6px}
+#growMsgs::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.gm{max-width:88%;padding:10px 14px;border-radius:11px;font-size:13.5px;line-height:1.7;white-space:pre-wrap}
+.gm.ai{background:#fff;border:1px solid var(--line);align-self:flex-start;border-top-left-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.gm.me{background:var(--navy);color:#fff;align-self:flex-end;border-top-right-radius:2px}
+.gm .mh{font-size:11px;color:var(--cinnabar);margin-bottom:5px;font-weight:600;letter-spacing:1px}
+.gm .prog{font-size:11px;color:var(--ink-3);margin-top:6px}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.quick button{font-size:12px;padding:5px 12px;border-radius:14px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-2)}
+.quick button:hover{border-color:var(--cinnabar);color:var(--cinnabar)}
+#growInput{display:flex;gap:8px;margin-top:12px}
+#growInput input{flex:1;border:1px solid var(--line);border-radius:8px;padding:10px 13px;font-size:13.5px;font-family:var(--sans);outline:none;background:#fff}
+#growInput input:focus{border-color:var(--cinnabar)}
+#growInput button{padding:0 22px;border:none;border-radius:8px;background:var(--cinnabar);color:#fff;font-size:14px;cursor:pointer}
+#growInput button:hover{background:#a93226}
+
+/* 右数据面板（教练室） */
+.sidepanel .blk{border-bottom:1px dashed var(--line);padding:12px 0}
+.sidepanel .blk:last-child{border:none}
+.sidepanel .blk h4{font-size:12px;color:var(--ink-3);letter-spacing:1px;margin-bottom:8px}
+.modelchip{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:5px 0}
+.modelchip .ms{font-size:10px;padding:1px 7px;border-radius:8px}
+.ms.M0{background:var(--paper-2);color:var(--ink-3)}
+.ms.M1{background:var(--navy-soft);color:var(--navy)}
+.ms.M2{background:#e8f0e9;color:var(--ok)}
+.ms.M3{background:var(--cinnabar-soft);color:var(--cinnabar)}
+
+/* 周报/风险 Tab */
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--ink);margin-bottom:16px}
+.tabs .t{padding:8px 18px;font-size:13.5px;cursor:pointer;color:var(--ink-3);border-radius:6px 6px 0 0;margin-bottom:-2px}
+.tabs .t.on{background:var(--ink);color:var(--paper);font-weight:600}
+.tabpane{display:none}.tabpane.on{display:block;animation:fadein .2s}
+
+/* 容差预警条 */
+.alertbar{display:flex;align-items:center;gap:12px;background:#fdf3f0;border:1px solid #e8c5bd;border-left:4px solid var(--cinnabar);border-radius:8px;padding:12px 16px;margin-bottom:16px}
+.alertbar .ic{font-size:20px}
+.alertbar .tx{flex:1;font-size:13px;line-height:1.5}
+.alertbar .tx b{color:var(--danger)}
+
+/* 卡片卡片流（强化营） */
+.dq{border:1px solid var(--line);border-radius:10px;background:#fff;padding:16px;margin-bottom:12px}
+.dq .q{font-size:14px;line-height:1.7;margin:8px 0 14px}
+.dq .opts{display:grid;gap:8px}
+.dq .opt{border:1px solid var(--line);border-radius:8px;padding:9px 13px;font-size:13px;cursor:pointer;transition:all .12s}
+.dq .opt:hover{border-color:var(--navy);background:#f6f8fb}
+.dq .opt.sel{border-color:var(--navy);background:var(--navy-soft)}
+.dq .opt.right{border-color:var(--ok);background:#eef5ef}
+.dq .opt.wrong{border-color:var(--danger);background:#f9ecea}
+.dq .exp{display:none;margin-top:12px;padding:12px;background:var(--paper-2);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--ink-2)}
+.dq .exp.show{display:block}
+.dq .src{font-size:11px;color:var(--ink-3)}
+.dq .src b{color:var(--gold)}
+
+/* 证据进度 */
+.evrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.evrow:last-child{border:none}
+.evrow .ic{width:30px;height:30px;border-radius:6px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.evrow .nm{flex:1}
+.evrow .nm small{display:block;color:var(--ink-3);font-size:11px}
+
+.kpi{display:flex;flex-direction:column;gap:2px}
+.kpi b{font-family:var(--serif);font-size:26px;letter-spacing:1px}
+.kpi span{font-size:11.5px;color:var(--ink-3)}
+.hint{font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.6}
+.mono{font-family:var(--mono)}
+/* 场景锁定 */
+.sccard.lock{opacity:.5;filter:grayscale(.7)}
+.sccard.lock:hover{transform:none;box-shadow:none;border-color:var(--line)}
+.sccard .lk{position:absolute;top:10px;right:10px;font-size:10px;background:var(--ink-3);color:#fff;border-radius:4px;padding:2px 7px}
+.sccard.newsc{border-color:var(--gold)}
+/* L1 任务工作台 */
+.taskrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px dashed var(--line)}
+.taskrow:last-child{border:none}
+.taskrow .ic{width:34px;height:34px;border-radius:8px;background:var(--navy-soft);color:var(--navy);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.taskrow .nm{flex:1;font-size:13.5px}
+.taskrow .nm small{display:block;color:var(--ink-3);font-size:11px;margin-top:2px}
+/* 冷启动弹窗 */
+#cold{position:fixed;inset:0;background:rgba(38,35,30,.55);backdrop-filter:blur(3px);z-index:99;display:none;align-items:center;justify-content:center}
+#cold.on{display:flex}
+#cold .cd{width:560px;max-width:92vw;background:var(--paper);border-radius:14px;padding:28px 30px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto}
+#cold h2{font-family:var(--serif);font-size:20px;letter-spacing:2px;margin-bottom:4px}
+#cold .cs{font-size:12px;color:var(--ink-3);margin-bottom:18px}
+#cold .cq{margin-bottom:16px}
+#cold .cq b{display:block;font-size:13.5px;margin-bottom:8px}
+#cold .cq .opts{display:grid;gap:7px}
+#cold .cq .opt{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;font-size:13px;cursor:pointer;transition:all .12s}
+#cold .cq .opt:hover{border-color:var(--navy)}
+#cold .cq .opt.sel{border-color:var(--cinnabar);background:var(--cinnabar-soft);color:var(--cinnabar);font-weight:600}
+#cold .res{display:none;background:#fff;border:1px solid var(--gold);border-radius:10px;padding:16px;margin:6px 0 14px;text-align:center}
+#cold .res b{font-family:var(--serif);font-size:18px;color:var(--cinnabar)}
+#cold .acts{display:flex;gap:10px;justify-content:center}
+/* 月报弹窗 */
+#mrep{position:fixed;inset:0;background:rgba(38,35,30,.55);backdrop-filter:blur(3px);z-index:98;display:none;align-items:center;justify-content:center}
+#mrep.on{display:flex}
+#mrep .cd{width:520px;max-width:92vw;background:var(--paper);border-radius:14px;padding:26px 28px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto}
+#mrep h2{font-family:var(--serif);font-size:20px;letter-spacing:2px;margin-bottom:4px}
+#mrep .cs{font-size:12px;color:var(--ink-3);margin-bottom:18px}
+/* 月度模拟步骤 */
+.mstep{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;margin-bottom:8px;font-size:13px;color:var(--ink-3);opacity:.45;transition:all .3s}
+.mstep.run{opacity:1;color:var(--ink);border-style:solid;border-color:var(--navy);background:#fff}
+.mstep.ok{opacity:1;color:var(--ok);border-color:#bcd4c2;background:#eef5ef}
+.mstep .sp{margin-left:auto;font-size:11px}
+/* 模型矩阵 */
+.mx{display:grid;grid-template-columns:44px repeat(5,1fr);gap:6px;font-size:12px}
+.mx .hd{color:var(--ink-3);font-size:11px;text-align:center;padding:4px 0}
+.mx .rw{color:var(--ink-2);display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:6px;background:var(--paper-2)}
+.mcell{border:1px solid var(--line);border-radius:7px;background:#fff;padding:7px 6px;text-align:center;cursor:pointer;transition:all .12s;line-height:1.35}
+.mcell:hover{border-color:var(--cinnabar);transform:translateY(-1px)}
+.mcell small{display:block;font-size:9.5px;margin-top:3px;border-radius:6px;padding:1px 0}
+.mc0{background:var(--paper-2);color:var(--ink-3)} .mc1{background:var(--navy-soft);color:var(--navy)}
+.mc2{background:#e8f0e9;color:var(--ok)} .mc3{background:var(--cinnabar-soft);color:var(--cinnabar)}
+/* 飞书同步日志 */
+.synclog{margin-top:12px;font-family:var(--mono);font-size:12px;line-height:2;color:var(--ink-2);display:none}
+.synclog div{opacity:0;animation:fadein .3s forwards}
+.synclog b{color:var(--ok)}
+@media (max-width:1100px){#app{grid-template-columns:180px 1fr 300px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="seal">项</div>
+    <h1>PM-Master · 成长工作台</h1>
+    <div class="lv">
+      <span>对标 <b>GB/T 41831-2022</b></span>
+      <span id="hdrLv">当前定位 <b>L4 高级</b> → 目标 <b>L5 专家级</b></span>
+      <div class="avatar">杜</div>
+    </div>
+  </header>
+
+  <nav id="nav">
+    <div class="sec">成长</div>
+    <a data-p="dash" class="on"><span class="ico">◉</span>成长看板<span class="badge" id="navGap">5</span></a>
+    <a data-p="coach"><span class="ico">✦</span>思维教练</a>
+    <a data-p="drill"><span class="ico">◈</span>强化营<span class="badge" id="navDq">7</span></a>
+    <a data-p="grow"><span class="ico">⛰</span>成长路径</a>
+    <div class="sec">实战</div>
+    <a data-p="work"><span class="ico">▤</span>项目工作台<span class="badge" id="navAlert">1</span></a>
+    <a data-p="evidence"><span class="ico">▣</span>成长记录</a>
+    <div class="sec">系统</div>
+    <a data-p="settings"><span class="ico">⚙</span>设置</a>
+    <div style="flex:1"></div>
+    <div style="padding:12px 18px;font-size:11px;color:var(--ink-3);line-height:1.8;border-top:1px solid var(--line)">
+      pi 引擎 · 就绪<br>飞书 · 已连接<br>下次雷达重算 · 11-01
+    </div>
+  </nav>
+
+  <main id="main">
+
+  <!-- ============ 页1 成长看板 ============ -->
+  <section class="page on" id="p-dash">
+    <div class="crumb">成长 / 能力雷达</div>
+    <h2 class="pt">成长看板</h2>
+    <p class="psub">三维度证据融合评估 · 短板原则定位 · 数据每月 1 日自动重算</p>
+
+    <div class="card">
+      <div class="lvtrack" id="lvTrack"></div>
+      <div style="display:flex;gap:24px;margin-top:10px;font-size:12px;color:var(--ink-2)" id="dimsLine">
+        <span>知识维度 <b class="mono" style="color:var(--ok)">L4 达标</b>（15/17 领域）</span>
+        <span>素质维度 <b class="mono" style="color:var(--warn)">L4 达标 / L5 差 6 项</b></span>
+        <span>经验维度 <b class="mono" style="color:var(--danger)">L4 达标 / L5 差 2 项</b>（短板）</span>
+      </div>
+    </div>
+
+    <div class="grid2 mt16">
+      <div class="card">
+        <h3>能力素质雷达 <span class="zh-seal">29 指标 · 按三类聚合</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button class="btn sm on" id="radType1" onclick="setRadar('cat')">分类视图</button>
+            <button class="btn sm" id="radType2" onclick="setRadar('ind')">指标明细</button>
+          </span>
+        </h3>
+        <div id="radar" style="height:340px"></div>
+      </div>
+      <div class="card">
+        <h3><span id="gapTitle">距 L5 差距</span> Top 5 <span class="zh-seal">短板优先</span></h3>
+        <div id="gapList"></div>
+        <div class="hint">差距 = <b>目标级要求</b> − 当前证据支持水平（等级自适应）。点击「去训练」直接进入教练场景。</div>
+      </div>
+    </div>
+
+    <div class="grid3 mt16">
+      <div class="card"><div class="kpi"><b id="kpi1">42</b><span>教练会话累计（行为证据 40% 权重的原料）</span></div></div>
+      <div class="card"><div class="kpi"><b id="kpi2">38%</b><span>45 模型覆盖度（M1+ / 目标 80%）</span></div></div>
+      <div class="card"><div class="kpi"><b id="kpi3">17/23</b><span id="kpi3s">L5 经验硬指标已满足项</span></div></div>
+    </div>
+
+    <div class="card mt16">
+      <h3>本周训练任务 <span class="zh-seal" id="taskSeal">grow-planner 生成</span></h3>
+      <table class="tb">
+        <thead><tr><th>任务</th><th>类型</th><th>关联指标</th><th>截止</th><th>状态</th><th></th></tr></thead>
+        <tbody id="taskBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 页2 思维教练 ============ -->
+  <section class="page" id="p-coach">
+    <div class="crumb">成长 / GROW 教练式引导</div>
+    <h2 class="pt">思维教练</h2>
+    <p class="psub">GROW 四阶段引导 · 45 思维模型按需嵌入 · 会话结束自动评定指标并回流雷达</p>
+
+    <div id="coachHome">
+      <div class="card">
+        <h3>PM 高频场景 <span class="zh-seal">L1 预置流程</span></h3>
+        <div class="scgrid" id="scGrid"></div>
+      </div>
+      <div class="grid2 mt16">
+        <div class="card">
+          <h3>通用策略场景 <span class="zh-seal">L2 兜底</span></h3>
+          <p style="font-size:12.5px;color:var(--ink-2);line-height:2" id="sList"></p>
+        </div>
+        <div class="card">
+          <h3>最近会话</h3>
+          <table class="tb">
+            <tr><th>时间</th><th>场景</th><th>产物</th><th>指标评定</th></tr>
+            <tr><td class="mono">10-06</td><td>风险决策</td><td>应急计划 v1</td><td><span class="pill ok">风险与机会 · 良好</span></td></tr>
+            <tr><td class="mono">10-04</td><td>向上汇报</td><td>季度汇报框架</td><td><span class="pill warn">人际沟通 · 合格</span></td></tr>
+            <tr><td class="mono">10-02</td><td>项目复盘</td><td>复盘报告 + 教训 3 条</td><td><span class="pill ok">自我反思 · 良好</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="coachRoom" style="display:none">
+      <div class="growwrap">
+        <div>
+          <div class="card sidepanel" style="position:sticky;top:0">
+            <h3 id="scTitle">场景</h3>
+            <div class="blk">
+              <h4>嵌入模型（推荐器三级规则）</h4>
+              <div id="scModels"></div>
+            </div>
+            <div class="blk">
+              <h4>训练指标</h4>
+              <div id="scTargets" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+            </div>
+            <div class="blk">
+              <h4>流程控制</h4>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn sm" onclick="growCmd('skip')">/skip</button>
+                <button class="btn sm" onclick="growCmd('back')">/back</button>
+                <button class="btn sm" onclick="growCmd('fast')">/fast</button>
+                <button class="btn sm" onclick="endSession()">结束会话</button>
+              </div>
+            </div>
+            <div class="blk">
+              <h4>自动收集（会话数据）</h4>
+              <div id="growData" style="font-size:12px;color:var(--ink-2);line-height:1.8;white-space:pre-wrap;font-family:var(--mono)">{ 待收集 }</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="growStage">
+          <div class="growbar" id="growBar">
+            <div class="gseg" data-g="G"><b>G</b><span class="stg">目标</span></div>
+            <div class="gseg" data-g="R"><b>R</b><span class="stg">现状</span></div>
+            <div class="gseg" data-g="O"><b>O</b><span class="stg">选项</span></div>
+            <div class="gseg" data-g="W"><b>W</b><span class="stg">行动</span></div>
+            <div class="gseg" data-g="E"><b>E</b><span class="stg">评定</span></div>
+          </div>
+          <div id="growMsgs"></div>
+          <div id="growInput">
+            <input id="growTxt" placeholder="输入你的回答…（支持 /skip /back /fast）" onkeydown="if(event.key==='Enter')growSend()">
+            <button onclick="growSend()">发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 页3 强化营 ============ -->
+  <section class="page" id="p-drill">
+    <div class="crumb">成长 / 间隔重复 · 情景应用</div>
+    <h2 class="pt">强化营</h2>
+    <p class="psub">17 领域知识卡片按遗忘曲线调度 · 情景应用题对标当前等级认知深度（L4：整合评价）</p>
+
+    <div class="grid3">
+      <div class="card"><div class="kpi"><b id="dqTodo">7</b><span>今日待复习（每日 09:00 生成队列）</span></div></div>
+      <div class="card"><div class="kpi"><b>156</b><span>已掌握卡片（M2 会应用以上）</span></div></div>
+      <div class="card"><div class="kpi"><b>风险域 62%</b><span>最弱领域（联动教练场景推荐）</span></div></div>
+    </div>
+
+    <div class="card mt16">
+      <h3>今日队列 <span class="zh-seal" id="drillDepth">L4 · 整合评价</span> <span class="zh-seal">主动回忆 · 先答后看</span></h3>
+      <div id="dqList"></div>
+    </div>
+
+    <div class="card mt16">
+      <h3><span id="drillFocus">L5 专项强化</span> <span class="zh-seal" id="drillFocusSub">战略 · 治理 · 选择与平衡 · 项目组合</span></h3>
+      <table class="tb">
+        <thead><tr><th>模块</th><th>来源体系</th><th>进度</th><th>操作</th></tr></thead>
+        <tbody id="focusBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 页3.5 成长路径 ============ -->
+  <section class="page" id="p-grow">
+    <div class="crumb">成长 / M5 · 差距变计划 · F3 月度闭环</div>
+    <h2 class="pt">成长路径</h2>
+    <p class="psub">差距 → 季度计划 → 周任务 → 追踪调整 · 每月 1 日雷达重算并推送成长月报</p>
+
+    <div class="card">
+      <h3>季度计划 · 2026 Q4 <span class="zh-seal" id="q4Seal">剧本：L4→L5 经营组织</span></h3>
+      <table class="tb">
+        <thead><tr><th>季度目标</th><th>关联差距</th><th>关键动作</th><th>进度</th></tr></thead>
+        <tbody id="q4Body"></tbody>
+      </table>
+    </div>
+
+    <div class="grid2 mt16">
+      <div class="card">
+        <h3>F3 月度成长闭环 <span class="zh-seal">定时器：每月 1 日 08:00</span></h3>
+        <div id="msList" style="min-height:180px"></div>
+        <button class="btn pri" id="msBtn" onclick="runMonthly()">▶ 模拟一次月度重算</button>
+      </div>
+      <div class="card">
+        <h3>成长曲线 <span class="zh-seal">近 6 个月</span></h3>
+        <div id="growChart" style="height:260px"></div>
+      </div>
+    </div>
+
+    <div class="card mt16">
+      <h3>45 思维模型掌握度矩阵 <span class="zh-seal" id="mxSeal">M1+ 17/45 · 38%</span>
+        <span style="margin-left:auto;display:flex;gap:5px;font-size:10px">
+          <span class="mc0" style="padding:2px 8px;border-radius:8px">M0 未接触</span>
+          <span class="mc1" style="padding:2px 8px;border-radius:8px">M1 已认识</span>
+          <span class="mc2" style="padding:2px 8px;border-radius:8px">M2 会应用</span>
+          <span class="mc3" style="padding:2px 8px;border-radius:8px">M3 能教授</span>
+        </span>
+      </h3>
+      <div class="mx" id="mxGrid"></div>
+      <div class="hint">M3「能教授」= W 产物形成可分享方法论 → 自动计入成长记录「知识贡献」（费曼闭环，PRD 4.9.2）。点击任一模型查看训练入口。目标：M1+ 覆盖 80%。</div>
+    </div>
+  </section>
+
+  <!-- ============ 页4 项目工作台 ============ -->
+  <section class="page" id="p-work">
+    <div class="crumb">实战 / 干活即练级</div>
+    <h2 class="pt">项目工作台</h2>
+    <p class="psub">产物自动沉淀证据 · 容差引擎纯代码比对 · 超限触发教练闭环</p>
+
+    <div class="alertbar" id="tolAlert">
+      <span class="ic">⚠️</span>
+      <div class="tx"><b>容差预警（PRINCE2 例外管理）</b>　「经营分析看板」成本偏差 <b>CPI 0.87</b> 超出容差下限 0.9（+10% 容差已耗尽 130%）。
+      规则引擎建议：发起「向上汇报」教练会话，生成例外报告与汇报话术。</div>
+      <button class="btn pri" onclick="startFromAlert()">一键进入教练闭环</button>
+      <button class="btn" onclick="this.closest('.alertbar').style.display='none';document.getElementById('navAlert').style.display='none'">忽略</button>
+    </div>
+
+    <div class="card" id="taskMode" style="display:none;margin-bottom:16px">
+      <h3>任务工作台 <span class="zh-seal">L1 辅助人员模式 · PRD 6.5.2</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">以被分配任务为导向 · 每个任务都是可追溯证据</span></h3>
+      <div class="taskrow"><div class="ic">📦</div><div class="nm">更新项目周报数据表（工作包 #W41-2）<small>来源：PM 分配 · 截止 10-09 · 产物自动入成长记录</small></div><span class="pill warn">执行中</span><button class="btn sm" onclick="sideSay('工作包 #W41-2 已标记「已提交」，PM 确认后计入你的 L2 项目经验证据。')">提交产出</button></div>
+      <div class="taskrow"><div class="ic">📋</div><div class="nm">整理干系人沟通记录（工作包 #W41-3）<small>只读协作视角 · 锻炼：信息与文档管理</small></div><span class="pill ok">待领取</span><button class="btn sm">领取</button></div>
+      <div class="taskrow"><div class="ic">🎓</div><div class="nm">本周学完「范围/进度/质量」知识卡 ×5<small>对标 L2 知识要求（应用分析）· 每完成 1 张自动调度复习</small></div><span class="pill warn">2/5</span><button class="btn sm" onclick="go('drill')">去学习</button></div>
+      <div class="hint">L1 模式下：风险册/干系人地图为只读；教练以微训练+单模型为主。攒满 1 年项目经验 → 系统提示升级评估（L2）。</div>
+    </div>
+
+    <div id="projMode">
+    <div class="card" style="margin-bottom:16px">
+      <h3>在管项目</h3>
+      <table class="tb">
+        <tr><th>项目</th><th>复杂度</th><th>角色</th><th>周期</th><th>健康度</th><th></th></tr>
+        <tr><td><b>经营分析看板</b></td><td><span class="pill warn">复杂</span></td><td>项目经理</td><td class="mono">2026-03 ~ 至今</td><td><span class="pill danger">成本超容差</span></td><td><button class="btn sm pri" onclick="openProj('经营分析看板')">进入</button></td></tr>
+        <tr><td><b>数据治理专项(群组)</b></td><td><span class="pill danger">项目群组</span></td><td>群组经理</td><td class="mono">2026-01 ~ 至今</td><td><span class="pill ok">容差内</span></td><td><button class="btn sm" onclick="openProj('数据治理专项(群组)')">进入</button></td></tr>
+      </table>
+    </div>
+
+    <div id="projDetail" style="display:none">
+      <div class="tabs">
+        <div class="t on" data-t="wk">周报</div>
+        <div class="t" data-t="rk">风险登记册</div>
+        <div class="t" data-t="st">干系人</div>
+        <div class="t" data-t="mt">会议</div>
+      </div>
+
+      <div class="tabpane on" data-p="wk">
+        <div class="card">
+          <h3>周报 · 2026-W41 草稿 <span class="zh-seal">周一 08:00 自动生成</span>
+            <span style="margin-left:auto"><button class="btn sm navy" onclick="sideSay('已请求 agent 展开「风险与应对」段落，正在基于风险登记册生成…')">让 AI 展开风险段</button>
+            <button class="btn sm">回写飞书文档</button></span></h3>
+          <div style="font-size:13.5px;line-height:1.9;color:var(--ink);padding:6px 2px">
+            <p><b>一、本周关键进展（帕累托：20% 关键成果）</b></p>
+            <p style="color:var(--ink-2)">1. 指标平台 3 个核心模块完成联调（对应里程碑 M3）　2. 干系人沟通会 2 场，参与度差距从 1.8→1.2　3. 供应商二期合同签署</p>
+            <p style="margin-top:10px"><b>二、挣值视图（PMP 度量域 · 自动计算）</b></p>
+            <table class="tb" style="margin:8px 0"><tr><th>PV</th><th>EV</th><th>AC</th><th>SV/SPI</th><th>CV/CPI</th><th>EAC</th></tr>
+            <tr><td class="mono">420万</td><td class="mono">398万</td><td class="mono">458万</td><td class="mono" style="color:var(--warn)">-22万 / 0.95</td><td class="mono" style="color:var(--danger)">-60万 / <b>0.87</b></td><td class="mono">1,042万</td></tr></table>
+            <p style="color:var(--danger);font-size:12.5px">⚠ CPI 低于容差下限 0.9 —— 已触发例外预警（见顶部），建议按例外报告结构向上汇报。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpane" data-p="rk">
+        <div class="card">
+          <h3>风险登记册 <span class="zh-seal">新建条目自动挂载二阶思维提问</span></h3>
+          <table class="tb">
+            <tr><th>风险</th><th>概率/影响</th><th>EMV</th><th>应对(PMP×PRINCE2 双标签)</th><th>状态</th><th></th></tr>
+            <tr><td>核心数据工程师离职</td><td class="mono">0.5 / 0.8</td><td class="mono">-40万</td><td><span class="pill navy">减轻(PMP)</span> <span class="pill navy">风险应对(PR2)</span></td><td><span class="pill warn">开放</span></td><td><button class="btn sm" onclick="sideSay('【二阶思维微训练】如果该员工离职：一阶效应=排期延迟；二阶效应=知识断层引发返工；三阶效应=团队信心下滑。请补充你看到的第三阶…')">二阶推演</button></td></tr>
+            <tr><td>源系统接口延期</td><td class="mono">0.3 / 0.6</td><td class="mono">-18万</td><td><span class="pill navy">转移(PMP)</span></td><td><span class="pill ok">缓解中</span></td><td><button class="btn sm">转问题登记</button></td></tr>
+          </table>
+          <div class="hint">风险已发生 = 问题（PRINCE2）：一键转化并进入问题管理流程。</div>
+        </div>
+      </div>
+
+      <div class="tabpane" data-p="st">
+        <div class="card">
+          <h3>干系人地图 <span class="zh-seal">PMP 参与度 × PRINCE2 三方治理 双视图</span></h3>
+          <div id="stakeChart" style="height:300px"></div>
+          <table class="tb">
+            <tr><th>干系人</th><th>权力/利益</th><th>当前→期望参与度</th><th>差距行动</th></tr>
+            <tr><td>Sponsor · 分管副总</td><td class="mono">高/高</td><td>支持 → 领导</td><td><button class="btn sm" onclick="go('coach');startScene('report')">向上汇报训练</button></td></tr>
+            <tr><td>数据部门总监</td><td class="mono">高/低</td><td>中立 → 支持 <span class="pill danger">差距1.8</span></td><td><button class="btn sm" onclick="go('coach');startScene('negotiate')">资源谈判训练</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="tabpane" data-p="mt">
+        <div class="card">
+          <h3>会议纪要 <span class="zh-seal">行动项回流 → 诚信与可靠机读分</span></h3>
+          <table class="tb">
+            <tr><th>会议</th><th>时间</th><th>行动项</th><th>责任人/截止</th><th>状态</th></tr>
+            <tr><td>W41 周例会</td><td class="mono">10-07</td><td>接口延期影响评估报告</td><td>我 / 10-09</td><td><span class="pill warn">进行中</span></td></tr>
+            <tr><td>群组指导委员会</td><td class="mono">10-05</td><td>子项目优先级排序方案</td><td>我 / 10-12</td><td><span class="pill warn">进行中</span></td></tr>
+          </table>
+          <div class="hint">按期完成率 92%（近90天）→ 诚信与可靠 指标机读分输入。</div>
+        </div>
+      </div>
+    </div>
+    </div><!-- /projMode -->
+  </section>
+
+  <!-- ============ 页5 成长记录 ============ -->
+  <section class="page" id="p-evidence">
+    <div class="crumb">实战 / 一套数据多头核算</div>
+    <h2 class="pt">成长记录</h2>
+    <p class="psub">同一份证据 · 同时对照 CSPM L5 清单 / PMP PDU / PRINCE2 CPD 打标</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h3><span id="evTitle">L5 经验硬指标</span> <span class="zh-seal" id="evSeal">17/23 已满足</span></h3>
+        <div id="evReq"></div>
+      </div>
+      <div class="card">
+        <h3>证据清单 <span style="margin-left:auto"><button class="btn sm pri" onclick="sideSay('正在生成《项目管理专业人员能力评价 · 评审申报材料》草稿：按重大项目管理经历 / 知识贡献 / 标准参与 三类汇编，可在教练侧边栏继续修改。')">生成评审材料</button></span></h3>
+        <div id="evList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 页6 设置 ============ -->
+  <section class="page" id="p-settings">
+    <div class="crumb">系统</div>
+    <h2 class="pt">设置</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>集成</h3>
+        <div class="evrow"><div class="ic">🪶</div><div class="nm">飞书 · 已连接<small>多维表 / 云文档 / 日历 · 每日 06:00 拉取</small></div><span class="pill ok">正常</span></div>
+        <div style="margin-top:10px"><button class="btn sm navy" onclick="feishuSync()">▶ 演示一次同步（P2 读流）</button></div>
+        <div class="synclog" id="syncLog"></div>
+        <div class="evrow"><div class="ic">π</div><div class="nm">pi 引擎 · SDK 模式<small>评估/教练=claude-opus · 周报/归档=deepseek-v3</small></div><span class="pill ok">正常</span></div>
+      </div>
+      <div class="card">
+        <h3>评估与调度</h3>
+        <div class="evrow"><div class="nm">雷达重算周期<small>每月 1 日 · 可随时 /assess 主动重估</small></div><button class="btn sm" onclick="go('dash')">查看</button></div>
+        <div class="evrow"><div class="nm">容差设置 · 经营分析看板<small>时间±10% 成本±10% 质量/范围/风险/收益 容差见项目设置</small></div><button class="btn sm">修改</button></div>
+        <div class="evrow"><div class="nm">数据<small>SQLite + markdown 文件库 · 本地存储</small></div><button class="btn sm">导出</button></div>
+      </div>
+    </div>
+    <div class="card mt16">
+      <h3>档案等级视角 <span class="zh-seal">等级自适应引擎（PRD 6.5）</span></h3>
+      <p style="font-size:12.5px;color:var(--ink-2);margin-bottom:12px;line-height:1.7">系统等级无关：任何用户冷启动定位 L1-L5 任意等级。切换后<b>全模块自适应</b>——顶栏/进度轨/雷达目标线/差距清单/本周任务/教练场景解锁/工作台形态（L1=任务模式）/出题深度/证据清单全部换档。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="applyProfile(1)">L1 辅助人员</button>
+        <button class="btn" onclick="applyProfile(2)">L2 初级</button>
+        <button class="btn" onclick="applyProfile(3)">L3 中级</button>
+        <button class="btn pri" onclick="applyProfile(4)">L4 高级（我的档案）</button>
+        <button class="btn" onclick="applyProfile(5)">L5 专家</button>
+        <button class="btn navy" onclick="openCold()">↻ 重新冷启动评估</button>
+      </div>
+    </div>
+  </section>
+  </main>
+
+  <!-- 教练侧边栏（全局常驻） -->
+  <aside>
+    <div class="as-head"><span class="dot"></span><b>教练侧边栏</b><span>· 全局常驻</span></div>
+    <div id="asMsgs">
+      <div class="msg ai">早上好。W41 周报草稿已生成，EVM 显示 <b>CPI 0.87</b> 超出成本容差，建议今天处理（右上角预警可一键进入例外汇报闭环）。
+今日复习队列 7 张卡，其中「项目组合：选择与平衡」与你 L5 差距直接相关。</div>
+    </div>
+    <div id="asInput">
+      <textarea id="asTxt" placeholder="随时对话：如「帮我演练向 sponsor 汇报 CPI 超标」"></textarea>
+      <button onclick="asSend()">➤</button>
+    </div>
+  </aside>
+</div>
+
+<!-- 月度成长月报弹窗（F3 产物） -->
+<div id="mrep">
+  <div class="cd">
+    <h2 id="mrTitle">成长月报 · 2026-10</h2>
+    <div class="cs" id="mrSub">三维证据融合 · 短板原则 · 对照 GB/T 41831-2022</div>
+    <div id="mrBody"></div>
+    <div class="acts" style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn pri" onclick="mrApply()">把建议写入下月计划</button>
+      <button class="btn" onclick="document.getElementById('mrep').classList.remove('on')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 冷启动向导（F0 流） -->
+<div id="cold">
+  <div class="cd">
+    <h2>冷启动 · 能力定位评估</h2>
+    <div class="cs">Flow 0（PRD 5.7.2）：真实系统会先导入简历/飞书履历做结构化初稿，再进入情景判断。此处为演示版——3 个快速问题即可完成定位。</div>
+    <div id="coldQs"></div>
+    <div class="res" id="coldRes"></div>
+    <div class="acts">
+      <button class="btn pri" id="coldGo" disabled style="opacity:.5">以评估等级进入</button>
+      <button class="btn" onclick="closeCold(4)">跳过 · 加载一号用户档案（L4）</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 导航 ================= */
+function go(p){
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
+  document.querySelectorAll('.page').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
+  document.getElementById('main').scrollTop=0;
+  if(p==='dash')setTimeout(drawRadar,50);
+  if(p==='work')setTimeout(drawStake,50);
+  if(p==='grow')setTimeout(drawGrow,50);
+}
+document.getElementById('nav').addEventListener('click',e=>{const a=e.target.closest('a');if(a&&a.dataset.p)go(a.dataset.p)});
+
+/* ================= 档案等级引擎（等级自适应 · PRD 6.5） ================= */
+ const PROFILE={level:4};   // 一号用户实例；实际系统读档案，零等级硬编码
+ const LVN={1:'辅助人员',2:'初级',3:'中级',4:'高级',5:'专家级'};
+ const CNUM=['一','二','三','四','五'];
+
+ const LV={
+  1:{tgt:2,
+     gaps:[['范围/时间/质量 知识（应用分析）',0.42,'知识 · L2 应达深度',"go('drill')"],
+           ['快速学习与运用管理工具',0.55,'素质 · 国标 5.2.1 基本要求',"go('drill')"],
+           ['人际沟通（清晰表达）',0.5,'素质 · L1 起要求',"go('coach')"],
+           ['团队合作',0.62,'素质',"go('work')"],
+           ['项目经验 ≥1 年',0.6,'经验硬指标 · 当前 0.6 年',"go('evidence')"]],
+     dims:['知识维度 <b class="mono" style="color:var(--warn)">L1 达标</b>（知道领会 12/17）','素质维度 <b class="mono" style="color:var(--warn)">L1 达标 · L2 差 2 项</b>','经验维度 <b class="mono" style="color:var(--danger)">差 0.4 年到 L2</b>（短板）'],
+     kpis:['6','12%','1/3','L2 经验项已满足'],
+     tasks:[['完成工作包 #W41-2 并提交产出','任务执行','结果导向','10-09','进行中','view'],
+            ['「范围/进度/质量」知识卡 ×5','知识强化','知识维度','每日','2/5','drill'],
+            ['金字塔表达微训练 ×2','微训练','人际沟通','10-10','1/2','coach']],
+     ev:[['项目管理领域经验 ≥2 年','1.6 年','差 0.4 年',0.8],['项目负责人经验 ≥1 年','0.6 年','差 0.4 年',0.6],['管理 ≥2 个一般项目（负责人）','1 个','差 1 个',0.5],['知识体系达「知道/领会」','12/17 领域','部分达标',0.7]],
+     drillSet:'basic',focusTag:2},
+  2:{tgt:3,
+     gaps:[['冲突与危机',0.45,'素质 · L3 新增要求',"go('coach');startScene('conflict')"],
+           ['谋略（系统性分析问题）',0.5,'素质 · L3 新增',"go('coach')"],
+           ['谈判',0.48,'素质 · L3 新增',"go('coach');startScene('negotiate')"],
+           ['资源管理知识（整合评价）',0.58,'知识 · L3 唯一整合项',"go('drill')"],
+           ['复杂项目经验 ×2',0.4,'经验 · 当前 0 个复杂项目',"go('evidence')"]],
+     dims:['知识维度 <b class="mono" style="color:var(--warn)">L2 达标</b>（应用分析 10/17）','素质维度 <b class="mono" style="color:var(--warn)">L2 达标 · L3 差 3 项</b>','经验维度 <b class="mono" style="color:var(--danger)">差 1.5 年 + 2 个复杂项目</b>（短板）'],
+     kpis:['15','24%','4/9','L3 经验项已满足'],
+     tasks:[['一般项目全流程走查（以当前项目）','实战演练','计划与控制','10-15','进行中','view'],
+            ['「团队冲突」场景 ×1（C04 入门）','教练训练','冲突与危机','10-09','待开始','coach'],
+            ['5Why 根因分析练习 ×2','微训练','谋略','10-11','1/2','coach']],
+     ev:[['PM 领域经验 ≥5 年','3.5 年','差 1.5 年',0.7],['PM/群组经理经验 ≥3 年','2.2 年','差 0.8 年',0.73],['≥5 一般项目 或 ≥2 复杂项目','3 一般 / 0 复杂','差 2 复杂',0.6],['知识贡献起步（案例分享 ≥1）','0 次','差 1 次',0.15]],
+     drillSet:'basic',focusTag:2},
+  3:{tgt:4,
+     gaps:[['领导力',0.55,'素质 · L4 新增',"go('coach')"],
+           ['关系与参与度',0.5,'素质 · L4 新增',"go('work')"],
+           ['战略解析能力',0.45,'L4 基本要求',"go('drill')"],
+           ['知识贡献（案例/培训）',0.5,'经验 · L4 要求起步',"go('evidence')"],
+           ['复杂项目 ≥5 或群组 ≥2',0.6,'经验 · 当前 3 复杂/0 群组',"go('evidence')"]],
+     dims:['知识维度 <b class="mono" style="color:var(--ok)">L3 达标</b>（15/17 领域）','素质维度 <b class="mono" style="color:var(--warn)">L3 达标 · L4 差 2 项</b>','经验维度 <b class="mono" style="color:var(--warn)">L4 差 2 年 + 项目数</b>（短板）'],
+     kpis:['28','33%','9/14','L4 经验项已满足'],
+     tasks:[['复杂项目「风险决策」场景 ×1（C08）','教练训练','风险与机会','10-09','待开始','coach'],
+            ['资源谈判演练 ×2','教练训练','谈判','10-12','1/2','coach'],
+            ['撰写案例分享 1 篇（知识贡献起步）','证据型写作','知识贡献','10-18','进行中','view']],
+     ev:[['PM 领域经验 ≥8 年','6 年','差 2 年',0.75],['PM/群组经理经验 ≥5 年','4 年','差 1 年',0.8],['≥5 复杂项目 或 ≥2 群组','3 复杂 / 0 群组','差 2 复杂',0.6],['知识贡献 · 较多（案例/培训）','1 次案例','需持续积累',0.3]],
+     drillSet:'adv',focusTag:3},
+  4:{tgt:5,
+     gaps:[['战略（组织级统筹实战）',0.55,'证据 45 / 要求 85',"go('coach')"],
+           ['治理、结构与流程',0.58,'58 / 85 · L5-PMO 要求',"go('work')"],
+           ['选择与平衡（组合权衡）',0.62,'62 / 88 · L5 特有',"go('drill')"],
+           ['文化与价值',0.45,'45 / 86 · L5-PMO 特有',"go('coach')"],
+           ['谈判（群组资源博弈）',0.68,'68 / 85 · 行为证据 2 次',"go('coach');startScene('negotiate')"]],
+     dims:['知识维度 <b class="mono" style="color:var(--ok)">L4 达标</b>（15/17 领域）','素质维度 <b class="mono" style="color:var(--warn)">L4 达标 / L5 差 6 项</b>','经验维度 <b class="mono" style="color:var(--danger)">L4 达标 / L5 差 2 项</b>（短板）'],
+     kpis:['42','38%','17/23','L5 经验项已满足'],
+     tasks:[['发起一次项目群组治理方案设计','证据型实战','治理结构与流程','10-12','进行中','view'],
+            ['「资源谈判」教练会话 ×2','教练训练','谈判','10-09','1/2','coach'],
+            ['强化营：项目组合管理卡片复习','知识强化','选择与平衡','每日','今日 7 张','drill']],
+     ev:[['项目管理领域工作经验 ≥10年','9.2 年','差 0.8 年',0.92],['项目经理/群组经理经验 ≥8年','7.5 年','差 0.5 年',0.94],['管理 ≥10 个复杂项目','6 个','差 4 个',0.6],['或 ≥6 个项目群组','2 个','差 4 个',0.33],['知识贡献·丰富（案例/培训/标准）','较丰富','差：标准参与 0 次',0.7]],
+     drillSet:'adv',focusTag:4},
+  5:{tgt:5,
+     gaps:[['文化与价值（持续引领）',0.78,'维持监测',"go('coach')"],
+           ['标准参与（国家/行业标准）',0.5,'经验 · 维持项',"go('evidence')"],
+           ['战略引领与组合治理',0.8,'维持',"go('drill')"],
+           ['国际项目交付',0.6,'经验 · 维持',"go('evidence')"],
+           ['带教与知识传承',0.72,'维持',"go('coach')"]],
+     dims:['知识维度 <b class="mono" style="color:var(--ok)">L5 达标</b>（17/17 整合评价）','素质维度 <b class="mono" style="color:var(--ok)">L5 达标</b>','经验维度 <b class="mono" style="color:var(--ok)">L5 达标</b>（维持监测）'],
+     kpis:['58','71%','22/23','L5 维持监测'],
+     tasks:[['参与行业标准制定跟进（联络标委会）','经验维持','标准参与','10-20','进行中','view'],
+            ['群组治理月度评审主持','实战','治理结构与流程','10-15','待开始','view'],
+            ['带教 2 名 L3→L4（含 C09 组合示范）','带教','领导力','每月','1/2','coach']],
+     ev:[['项目管理领域工作经验 ≥10年','11.4 年','已满足',1],['复杂项目 ≥10 或群组 ≥6','11 复杂 / 5 群组','接近',0.9],['知识贡献·丰富（含标准参与）','2 项标准在参','维持',0.85],['国际项目经历','3 个','维持',0.75]],
+     drillSet:'adv',focusTag:5}
+ };
+
+ function renderTrack(){
+   const c=PROFILE.level;let h='';
+   for(let i=1;i<=5;i++){
+     h+=`<div class="st ${i<c?'done':i===c?'cur':''}"><i>${CNUM[i-1]}</i><span>${LVN[i].slice(0,2)}${i===c?'(当前)':''}</span></div>`;
+     if(i<5)h+=`<div class="bar ${i<c?'done':''}"></div>`;
+   }
+   document.getElementById('lvTrack').innerHTML=h;
+ }
+
+ window.applyProfile=function(n,silent){
+   PROFILE.level=n;const L=LV[n];
+   /* 顶栏 + 进度轨 */
+   document.getElementById('hdrLv').innerHTML=n<5
+     ?`当前定位 <b>L${n} ${LVN[n]}</b> → 目标 <b>L${n+1} ${LVN[n+1]}</b>`
+     :`当前定位 <b>L5 专家级</b>（顶格维持）`;
+   renderTrack();
+   /* 三维度摘要 + KPI */
+   document.getElementById('dimsLine').innerHTML=L.dims.map(s=>`<span>${s}</span>`).join('');
+   document.getElementById('kpi1').textContent=L.kpis[0];
+   document.getElementById('kpi2').textContent=L.kpis[1];
+   document.getElementById('kpi3').textContent=L.kpis[2];
+   document.getElementById('kpi3s').textContent=L.kpis[3];
+   /* 差距 Top5 */
+   document.getElementById('gapTitle').textContent=n<5?`距 L${L.tgt} 差距`:'L5 维持监测';
+   document.getElementById('gapList').innerHTML=L.gaps.map((g,i)=>`
+    <div class="gaprow"><span class="mono" style="color:var(--ink-3);width:16px">${i+1}</span>
+    <span class="nm">${g[0]}</span>
+    <div class="bar"><i style="width:${g[1]*100}%;background:${g[1]<.6?'var(--danger)':'var(--warn)'}"></i></div>
+    <span class="v">${g[2]}</span><button class="btn sm" onclick="${g[3]}">去训练</button></div>`).join('');
+   /* 本周任务 */
+   const btnMap={coach:`<button class="btn sm pri" onclick="go('coach')">去训练</button>`,drill:`<button class="btn sm" onclick="go('drill')">去复习</button>`,view:`<button class="btn sm">查看</button>`};
+   document.getElementById('taskBody').innerHTML=L.tasks.map(t=>`
+    <tr><td>${t[0]}</td><td>${t[1]}</td><td>${t[2]}</td><td class="mono">${t[3]}</td><td><span class="pill ${t[4]==='进行中'||t[4].includes('/')?'warn':'ok'}">${t[4]}</span></td><td>${btnMap[t[5]]}</td></tr>`).join('');
+   document.getElementById('taskSeal').textContent=n===1?'grow-planner · L1 剧本：学会干活':n===5?'grow-planner · L5 维持':'grow-planner 生成';
+   /* 工作台形态：L1=任务模式 / L2+=项目模式 */
+   document.getElementById('taskMode').style.display=n===1?'block':'none';
+   document.getElementById('projMode').style.display=n>=2?'block':'none';
+   /* 容差预警（复杂项目机制，L3+ 出现） */
+   const showAlert=n>=3;
+   document.getElementById('tolAlert').style.display=showAlert?'flex':'none';
+   document.getElementById('navAlert').style.display=showAlert?'':'none';
+   /* 教练 / 强化营 / 证据 */
+    renderCoach();renderDrill();renderEv();renderGrow();
+   if(typeof radar!=='undefined')drawRadar();
+   if(!silent)sideSay(`档案已切换至 <b>L${n}（${LVN[n]}）</b>，目标级 L${LV[n].tgt}——全模块自适应换档完成：差距清单/任务/教练场景解锁/工作台形态/出题深度/证据清单（读 gbt41831.yaml，零等级硬编码，PRD 6.5）。`);
+ }
+
+/* ================= 雷达图 ================= */
+const CAT={names:['战略','治理结构','遵循规则','权力利益','文化与价值','自我反思','诚信可靠','人际沟通','关系参与','领导力','团队合作','冲突危机','谋略','谈判','结果导向','策划','需求收益','范围','时间','组织信息','质量','财务','资源','采购伙伴','计划控制','风险机会','利益相关方','变革转型','选择平衡']};
+const CATG={环境:[72,58,76,64,45],个人:[88,90,82,71,74,86,68,75,83,79],技术:[84,80,88,71,86,66,90,63,87,59,74,81,70,62]};
+function catRadarData(){let d=[];['环境','个人','技术'].forEach((g,i)=>CATG[g].forEach(v=>d.push(v)));return d}
+let radarMode='cat';
+const radar=echarts.init(document.getElementById('radar'));
+window.setRadar=function(m){
+  radarMode=m;
+  document.getElementById('radType1').style.background=m==='cat'?'var(--ink)':'';
+  document.getElementById('radType1').style.color=m==='cat'?'#fff':'';
+  document.getElementById('radType2').style.background=m==='ind'?'var(--ink)':'';
+  document.getElementById('radType2').style.color=m==='ind'?'#fff':'';
+  drawRadar();
+};
+window.drawRadar=function(){
+  const cur=catRadarData();
+  const TGT=CAT.names.map((_,i)=>36+PROFILE.level*9.8+(i%3)*3);
+  const curN='当前(L'+PROFILE.level+'证据)', tgtN=PROFILE.level<5?('L'+(PROFILE.level+1)+' 要求线'):'L5 满格线';
+  radar.setOption({
+    tooltip:{trigger:'item'},
+    legend:{data:[curN,tgtN],bottom:0,textStyle:{color:'#5c564a',fontSize:11}},
+    radar:{indicator:CAT.names.map(n=>({name:n,max:100})),radius:'62%',center:['50%','46%'],
+      axisName:{color:'#5c564a',fontSize:10.5},
+      splitArea:{areaStyle:{color:['#faf7ef','#f2eddf']}},splitLine:{lineStyle:{color:'#d9d2c0'}},axisLine:{lineStyle:{color:'#d9d2c0'}}},
+    series:[{type:'radar',data:[
+      {value:TGT,name:tgtN,lineStyle:{color:'#c9c2ae',type:'dashed'},areaStyle:{color:'rgba(201,194,174,.18)'},symbol:'none'},
+      {value:cur,name:curN,lineStyle:{color:'#c0392b',width:2},areaStyle:{color:'rgba(192,57,43,.14)'},itemStyle:{color:'#c0392b'},symbolSize:3}
+    ]}]
+  },true);
+};
+window.addEventListener('resize',()=>{radar.resize();stakeChart.resize()});
+
+/* ================= 差距 Top5（由 applyProfile 等级驱动渲染） ================= */
+
+/* ================= 教练场景库 ================= */
+const SCENES={
+ report:{name:'向上汇报',em:'📣',desc:'让老板做对决策：框架先行，数据兜底',mods:['C11 汇报说服','框架效应','金字塔原理','帕累托'],tg:['人际沟通','结果导向','谋略'],
+  intro:`好，我们用「向上汇报」场景走 GROW。当前已预填工作台上下文：\n【CPI 0.87 超容差 · 成本偏差 -60万 · EAC 1042万】\n\n问题1（G-目标）：这次汇报，你最想让老板做的<b>那个决策</b>是什么？\n（补充预算？调整范围？还是只要知情备案？——一次汇报只推动一个决策）`},
+ negotiate:{name:'资源谈判',em:'🤝',desc:'数据部门总监中立→支持，谈判方案设计',mods:['C04 冲突化解','博弈论','BATNA','互惠'],tg:['谈判','权力与利益'],
+  intro:`「资源谈判」场景。GROW 走起。\n\n问题1（G-目标）：这场谈判你的<b>理想结果</b>和<b>底线</b>分别是什么？\n（提示：先想 BATNA——如果谈不成，你的最佳替代方案是什么？想清楚底线才有锚）`},
+ conflict:{name:'团队冲突',em:'⚡',desc:'震荡期冲突：立场之下的利益分析',mods:['C01 深度诊断','根因分析5Why','囚徒困境','重新定义问题'],tg:['冲突与危机','团队合作','领导力'],
+  intro:`「团队冲突」场景。R 阶段我们会用 5Why 挖根因，先从目标开始。\n\n问题1（G-目标）：冲突解决后，你希望团队回到什么状态？\n（描述具体行为，而非“关系变好”这类模糊词）`},
+ risk:{name:'风险决策',em:'🎲',desc:'二阶思维+EMV 的量化风险推演',mods:['C08 风险评估','二阶思维','情景分析','期望值EMV'],tg:['风险与机会','谋略'],
+  intro:`「风险决策」场景，推荐组合 C08 风险评估。\n\n问题1（G-目标）：这个风险决策你倾向的选项是什么？你最担心的一阶后果是什么？`},
+ change:{name:'变更博弈',em:'⚖️',desc:'五维影响评估+基线治理',mods:['C02 理性决策','沉没成本','第一性原理','决策矩阵'],tg:['计划与控制','利益相关方'],
+  intro:`「变更博弈」场景。\n\n问题1（G-目标）：这个变更请求，你内心希望的结果是——批准、拒绝、还是缓议？\n（先直面自己的立场，O 阶段我们再用沉没成本检查它是否理性）`},
+ retro:{name:'项目复盘',em:'🔍',desc:'双环学习：从教训到机制',mods:['C06 系统思考','根因分析','飞轮效应','确认偏误'],tg:['自我反思','经验教训','团队合作'],
+  intro:`「项目复盘」场景，双环学习框架。\n\n问题1（G-目标）：这次复盘你最想回答的那个问题是什么？\n（好问题比好流程重要——“为什么会X”优于“我们哪里做得不好”）`},
+ c13:{name:'例外应对',em:'🚨',desc:'容差超限→例外报告→向上汇报（黄金闭环）',mods:['C13 例外应对','二阶思维','情景分析','框架效应'],tg:['风险与机会','人际沟通'],
+  intro:`「例外应对」场景（C13，L4 解锁）。\n\n问题1（G-目标）：这次例外汇报，你要委员会做出的<b>决策</b>是什么？（追加预算/调整范围/接受偏差——只能选一个主请求）`},
+ c14:{name:'干系人博弈',em:'♟️',desc:'参与度差距处理 · 跨部门资源争取',mods:['C14 干系人博弈','权力与利益','博弈论','互惠'],tg:['权力与利益','谈判'],
+  intro:`「干系人博弈」场景（C14，L4 解锁）。\n\n问题1（G-目标）：这位关键干系人，你希望TA的三个月后状态是什么？（从“中立”到“支持”？还是建立正式联盟？）`}
+};
+/* 场景解锁（PRD 6.5.1：L1=微训练+单模型；L2=六场景入门；L4=+C13/C14） */
+function renderCoach(){
+  const L=PROFILE.level;let h='';
+  if(L===1){
+    h+=`<div class="sccard newsc" onclick="startScenario('表达微训练（金字塔原理）',['结论先行','以上统下','归类分组','逻辑递进'],'人际沟通')">
+      <span class="em">🧗</span><b>表达微训练 · 金字塔原理</b><p>L1 主训练形态：单模型，不进完整 GROW，10 分钟一练</p>
+      <div class="mod"><span>金字塔原理</span><span>单模型</span></div></div>`;
+  }
+  Object.entries(SCENES).forEach(([k,s])=>{
+    const lock=(L<2)||( (k==='c13'||k==='c14') && L<4 );
+    if(lock){
+      const need=(k==='c13'||k==='c14')?'L4':'L2';
+      h+=`<div class="sccard lock" onclick="sideSay('「${s.name}」场景将在定位 <b>${need}</b> 后解锁（等级自适应，PRD 6.5.1）。当前可用：${L===1?'表达微训练 + 单模型':'已解锁场景 + 组合训练'}。')">
+      <span class="lk">🔒 ${need} 解锁</span><span class="em">${s.em}</span><b>${s.name}</b><p>${s.desc}</p>
+      <div class="mod">${s.mods.map(m=>`<span>${m}</span>`).join('')}</div></div>`;
+    }else{
+      const isNew=(k==='c13'||k==='c14')&&L>=4;
+      h+=`<div class="sccard${isNew?' newsc':''}" onclick="startScenario('${s.name}',${JSON.stringify(s.mods.slice(1))},'${s.tg[0]}','${k}')">
+      ${isNew?'<span class="lk" style="background:var(--gold)">L4 新解锁</span>':''}<span class="em">${s.em}</span><b>${s.name}</b><p>${s.desc}</p>
+      <div class="mod">${s.mods.map(m=>`<span>${m}</span>`).join('')}</div></div>`;
+    }
+  });
+  document.getElementById('scGrid').innerHTML=h;
+  const comboNote=L===1?'当前：单模型引导（组合将在 L2 解锁）'
+    :L===2?'已解锁：中级组合 C03/05/09/11/12（高级组合 L3 解锁）'
+    :L===3?'已解锁：全部高级组合 C01/02/04/06/07/08/10'
+    :'已解锁：高级组合 + C13 例外应对 / C14 干系人博弈（L4 专属）';
+  document.getElementById('sList').innerHTML=['S01 认知纠偏','S02 高效学习','S03 问题破解','S04 趋势把握','S05 数据解读','S06 理性决策','S07 冲突应对','S08 潜能释放','S09 商业战略'].map(s=>`<span class="pill navy" style="margin:0 8px 8px 0">${s}</span>`).join('')+`<br><span style="font-size:11.5px;color:var(--ink-3)">非预置问题自动匹配 9 大场景兜底；${comboNote}。</span>`;
+}
+
+/* ================= GROW 引擎 ================= */
+let SESS=null;
+const PHASES=['G','R','O','W','E'];
+function setBar(p){
+  document.querySelectorAll('#growBar .gseg').forEach(s=>{
+    const g=s.dataset.g, idx=PHASES.indexOf(g), cur=PHASES.indexOf(p);
+    s.classList.toggle('cur',g===p); s.classList.toggle('done',idx<cur);
+  });
+}
+function gmPush(role,html,head,prog){
+  const box=document.getElementById('growMsgs');
+  const d=document.createElement('div');d.className='gm '+role;
+  d.innerHTML=(head?`<div class="mh">${head}</div>`:'')+html+(prog?`<div class="prog">📊 ${prog}</div>`:'');
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+function quickBtns(list,cb){
+  let box=document.createElement('div');box.className='quick';
+  list.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>{box.remove();cb(t)};box.appendChild(b)});
+  document.getElementById('growMsgs').appendChild(box);
+}
+const GROWFLOW={
+ G:{q:'问题2（G-目标）：理想结果用一两句话描述？底线（最差可接受）是什么？',quick:['理想：CPI 回到0.95+；底线：追加减预算10%','理想：范围不减；底线：砍P2功能']},
+ R:{q:'📊 R-1 事实梳理：偏差是什么时候开始扩大的？发生了什么（5W1H，能填多少填多少）？',quick:['9月中开始，供应商二期涨价+返工','试试 /skip 直接看分析']},
+ R2:{q:'📊 R-2 根因分析（第2/5个为什么）：为什么供应商涨价没有被早发现？',quick:['合同里没有价格锁定条款','风险登记时标了低概率']},
+ O:{q:'📊 O-1 策略选择：基于根因，给出 2 条路线（评估维度：建设性/风险可控/速度）。\nA) 范围置换：砍 P2 换预算　B) 例外报告：申请专项追加\n你倾向哪条？',quick:['倾向 A 范围置换','倾向 B 例外报告','两条都要评估']},
+ O2:{q:'📊 O-2 二阶推演（二阶思维）：你选的路线，二阶效应是什么？（做了X之后会发生什么？之后又会怎样？）',quick:['A：客户不满→二期收入风险','B：开先例→后续项目都来要钱']},
+ W:{q:'📊 W-1 行动方案已生成（见下）。检查 SMART：动作、时间、责任人都齐了吗？',quick:['确认，输出汇报框架','再改改话术']},
+ E:{q:'评定阶段：AI 将引用会话依据评定本次指标表现。确认归档吗？',quick:['确认归档','关联项目：经营分析看板']}
+};
+function startScenario(name,mods,target,key){
+  const sc=key?SCENES[key]:null;
+  SESS={name,mods:mods||['二阶思维','框架效应'],target,phase:'G',data:{}};
+  document.getElementById('coachHome').style.display='none';
+  document.getElementById('coachRoom').style.display='block';
+  document.getElementById('scTitle').textContent=name+' · '+ (sc?sc.em:'✦');
+  document.getElementById('scModels').innerHTML=(sc?sc.mods:mods).map((m,i)=>`<div class="modelchip"><span>${m}</span><span class="ms ${i===0?'M2':'M1'}">${i===0?'M2 会应用':'M1 已认识'}</span></div>`).join('');
+  document.getElementById('scTargets').innerHTML=(sc?sc.tg:[target]).map(t=>`<span class="pill navy">${t}</span>`).join('');
+  setBar('G');
+  document.getElementById('growMsgs').innerHTML='';
+  const intro=sc?sc.intro:`「${name}」场景启动。GROW 引导开始。\n\n问题1（G-目标）：你最想达成的首要目标是什么？`;
+  aiSay(intro,'PHASE 0 · 场景识别');
+  document.getElementById('growData').textContent='{ "mode":"standard", "scenario":"'+name+'", "models":'+JSON.stringify(sc?sc.mods:mods)+' }';
+}
+window.startScene=function(key){const s=SCENES[key];startScenario(s.name,s.mods.slice(1),s.tg[0],key)};
+function aiSay(html,head,prog){gmPush('ai',html,head,prog)}
+function meSay(t){gmPush('me',t)}
+
+function growSend(){
+  const inp=document.getElementById('growTxt');const t=inp.value.trim();if(!t)return;
+  inp.value='';meSay(t);handleGrow(t);
+}
+function handleGrow(t){
+  if(t.startsWith('/skip')||t.startsWith('/back')||t.startsWith('/fast'))return growCmd(t.slice(1));
+  const s=SESS;if(!s)return;
+  // 记录数据
+  s.data[s.phase]=(s.data[s.phase]||'')+'\n'+t;
+  setTimeout(()=>{
+    if(s.phase==='G'){setBar('R');aiSay(GROWFLOW.G.q,'G 阶段确认 → 进入 R','📊 当前进度：R-1 事实梳理');quickBtns(GROWFLOW.G.quick,()=>{})}
+    else if(s.phase==='R'){s.phase='R2';aiSay('已收到事实。<br>'+GROWFLOW.R2.q,'R-1 → R-2','📊 当前进度：R-2 根因分析（第2/5个为什么）');quickBtns(GROWFLOW.R2.quick)}
+    else if(s.phase==='R2'){setBar('O');aiSay('根因链条成立：合同缺价格锁定 → 风险低估 → 偏差扩大。<br>'+GROWFLOW.O.q,'R-2 完成 → O 阶段','📊 当前进度：O-1 策略选择');quickBtns(GROWFLOW.O.quick)}
+    else if(s.phase==='O'){s.phase='O2';aiSay(GROWFLOW.O2.q,'二阶思维嵌入','📊 当前进度：O-2 二阶推演');quickBtns(GROWFLOW.O2.quick)}
+    else if(s.phase==='O2'){setBar('W');aiSay(`W-1 方案生成（SMART）：<br><br><b>① 例外报告</b>（今日）：按 PRINCE2 结构——偏差事实(CPI 0.87/-60万) / 根因 / 二选一方案对比 / 建议(B+范围置换兜底) / 决策请求(追加8%)<br><b>② 话术开场</b>：「先说结论：成本超容差13%，根因已锁定，两条路线需要您今天定一条——」<br><b>③ 机制改进</b>：合同模板增加价格锁定条款（写入 lessons-learned）<br><br>`+GROWFLOW.W.q,'O 完成 → W 阶段','📊 当前进度：W-1 生成方案');quickBtns(GROWFLOW.W.quick)}
+    else if(s.phase==='W'){setBar('E');aiSay(GROWFLOW.E.q,'W 确认 → E 评定','📊 当前进度：E 指标评定')}
+    else if(s.phase==='E'){endSession(true)}
+  },420);
+}
+function growCmd(c){
+  if(!SESS)return;
+  if(c==='skip'){gmPush('sys','已跳过当前追问');handleGrow('(跳过)')}
+  if(c==='back'){gmPush('sys','已返回上一阶段（演示环境仅记录指令）')}
+  if(c==='fast'){gmPush('sys','已切换快速模式：R 阶段追问缩减为 3 层')}
+}
+function endSession(auto){
+  if(!SESS)return;
+  setBar('E');
+  aiSay(`【会话评定 · 依据引用】<br>▸ ${SESS.target}：**良好** —— 依据：O 阶段能在沉没成本检查后修正立场，W 产物含完整决策请求<br>▸ 自动归档：coach_sessions ✓ → competency_scores 流水 ✓ → 成长记录（关联项目）✓<br><br>本会话产物已生成：<b>《例外报告》</b>。可在成长记录查看。`,'E · 评定完成');
+  document.getElementById('growData').textContent=JSON.stringify({mode:'standard',scenario:SESS.name,models:SESS.mods,goal:SESS.data.G||'',root_cause:'合同缺价格锁定条款',will:{artifact:'例外报告',project:'经营分析看板'}},null,1);
+  gmPush('sys','会话已归档 · 雷达行为证据分已更新（+1 次「'+SESS.target+'」）');
+  SESS=null;
+  setTimeout(()=>{document.getElementById('coachRoom').style.display='none';document.getElementById('coachHome').style.display='block'},2600);
+}
+/* 容差预警一键闭环 */
+function startFromAlert(){
+  go('coach');
+  setTimeout(()=>{startScene('report');
+    setTimeout(()=>{meSay('我要向 sponsor 汇报成本超容差，争取追加预算 8%');
+      setTimeout(()=>handleGrow('目标已定'),400);
+    },500);
+  },350);
+}
+
+/* ================= 项目 Tabs ================= */
+document.querySelector('.tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.t');if(!t)return;
+  document.querySelectorAll('.tabs .t').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('on',p.dataset.p===t.dataset.t));
+  if(t.dataset.t==='st')setTimeout(drawStake,60);
+});
+function openProj(n){document.getElementById('projDetail').style.display='block';document.getElementById('projDetail').scrollIntoView({behavior:'smooth'})}
+
+/* ================= 干系人图 ================= */
+const stakeChart=echarts.init(document.getElementById('stakeChart'));
+function drawStake(){
+  stakeChart.setOption({
+    tooltip:{formatter:p=>p.data.name+'<br>当前 '+p.data.cur+' → 期望 '+p.data.exp},
+    grid:{left:60,bottom:50,right:30,top:30},
+    xAxis:{name:'利益',min:0,max:10,splitLine:{lineStyle:{color:'#e7e0cd'}}},
+    yAxis:{name:'权力',min:0,max:10,splitLine:{lineStyle:{color:'#e7e0cd'}}},
+    series:[{type:'scatter',symbolSize:26,
+      data:[
+        {name:'Sponsor·分管副总',value:[9,9],cur:'支持',exp:'领导',itemStyle:{color:'#c0392b'}},
+        {name:'数据部门总监',value:[3,8],cur:'中立',exp:'支持',itemStyle:{color:'#b07d2b'}},
+        {name:'业务方代表',value:[8,5],cur:'支持',exp:'支持',itemStyle:{color:'#3d7a4f'}},
+        {name:'供应商PM',value:[4,3],cur:'中立',exp:'中立',itemStyle:{color:'#8a8271'}}
+      ],
+      label:{show:true,position:'top',formatter:p=>p.data.name,fontSize:10.5,color:'#5c564a'},
+      markArea:{silent:true,itemStyle:{color:['rgba(192,57,43,.05)','rgba(31,58,95,.05)','rgba(61,122,79,.05)','rgba(0,0,0,.03)']},data:[[{xAxis:5,yAxis:5},{xAxis:10,yAxis:10}],[{xAxis:0,yAxis:5},{xAxis:5,yAxis:10}],[{xAxis:5,yAxis:0},{xAxis:10,yAxis:5}],[{xAxis:0,yAxis:0},{xAxis:5,yAxis:5}]]}
+    }]},true);
+}
+
+/* ================= 强化营（分级题库：认知深度随档案等级换档） ================= */
+const DQ_ADV=[
+ {tag:'选择与平衡',
+  q:'情景应用题（整合评价）：<br>你管理的项目群组中，子项目 A（战略重要、收益大）与子项目 B（合规要求、硬截止）争夺同一批数据专家。资源只够保一个。作为群组经理，你决策的第一依据应该是？',
+  src:'项目组合 · 选择与平衡（PMP 裁剪 × PRINCE2 商业论证 × S06 决策矩阵）',
+  opts:['谁的发起人职级高就保谁','按「战略贡献×违约后果」加权评估，量化两条路线的预期值后决策','先到先得，看谁先提的申请','各砍一半资源，两边都试试'],ans:1,
+  exp:'L4-L5 的「选择与平衡」要求整合评价：<b>量化权衡</b>（决策矩阵+预期值）而非职权排序；各砍一半往往两边都失败（违反帕累托）。注意二阶效应：保 A 可能引发 B 的合规违约连锁。'},
+ {tag:'风险与机会',
+  q:'认知校准（S01）：你的 CPI 连续三周低于 1.0，团队坚称「这周一定能追回来」。最该警惕的偏差组合是？',
+  src:'风险管理 × S01 认知纠偏（乐观偏差+确认偏误）',
+  opts:['锚定效应','幸存者偏差','乐观偏差 + 沉没成本（已投入太多所以相信会好转）','可得性偏差'],ans:2,
+  exp:'「已经投了这么多，一定行」= 沉没成本谬误×乐观偏差的典型组合。PRINCE2 的例外管理正是对治机制：<b>超容差即上报</b>，不给偏差自我合理化的空间。'},
+ {tag:'治理结构',
+  q:'治理题（PRINCE2 组织主题）：项目保证（Project Assurance）与项目经理的关系应当是——',
+  src:'治理结构与流程 · PRINCE2 组织主题（L5-PMO 核心）',
+  opts:['项目经理的下属，方便指挥','独立于项目经理，向项目委员会负责','外包给供应商最客观','由项目经理兼任以节省资源'],ans:1,
+  exp:'项目保证的独立性是治理基石：独立于 PM 向委员会负责，才能审查「运动员兼裁判」的利益冲突。这正是国标 L5「治理、结构与流程」指标的行为证据点。'}
+];
+const DQ_BASIC=[
+ {tag:'进度',
+  q:'应用分析题：<br>某非关键路径活动拥有 3 天总浮动时间，实际执行延迟了 2 天。项目总工期会怎样？',
+  src:'进度管理 · 应用分析（国标 5.2.2c：L1 即要求应用分析深度）',
+  opts:['延迟 2 天','不变（浮动时间吸收了偏差）','延迟 3 天','无法判断'],ans:1,
+  exp:'总浮动时间就是吸收偏差的缓冲——只有<b>关键路径</b>（浮动为 0）上的延迟才直接顺延总工期。这是「进度管理·应用分析」的典型考法：不仅要知道概念，还要能推断后果。'},
+ {tag:'范围',
+  q:'知道领会题：<br>经正式批准的范围基线（Scope Baseline）包含哪些组成部分？',
+  src:'范围管理 · 知道领会（PMBOK 范围基线 × PRINCE2 产品描述 双标卡片）',
+  opts:['仅工作分解结构 WBS','仅需求文档','范围说明书 + WBS + WBS 词典','仅可交付物清单'],ans:2,
+  exp:'范围基线三件套 = 范围说明书 + WBS + WBS 词典。PRINCE2 对应产品描述（PD），PMP 对应 Scope Baseline——同一件事的两种操典说法，卡片已双体系打标。'},
+ {tag:'质量',
+  q:'应用分析题：<br>项目的验收标准应当在什么时点定义？',
+  src:'质量管理 · 应用分析（PRINCE2 质量路径 × PMP DoD 前置）',
+  opts:['交付时由团队现场商定','规划阶段随需求/产品描述前置定义','测试阶段再补充','客户验收当天确定'],ans:1,
+  exp:'质量是「设计+约定」出来的，不是验收现场谈出来的——PRINCE2 质量路径与 PMP DoD 都要求<b>验收准则前置</b>。国标对 L1 即要求「质量」达到应用分析深度（5.2.2c）。'}
+];
+let CURDQ=[],dqDone=0;
+const FOCUS={
+ 2:[['范围/进度/质量 应用分析题库','PMBOK 规划/交付 × 国标 L2 矩阵',30],['管理工具快速上手（WBS / 甘特图）','工作台实操向导',15]],
+ 3:[['复杂问题简化','PMP 系统思维 × S03 问题破解',25],['跨职能共识促成','干系人参与 × C04 组合',10]],
+ 4:[['项目组合管理：选择与平衡','PMP 裁剪 × PRINCE2 商业论证',45],['组织级治理设计（三方治理/阶段门控）','PRINCE2 组织主题',20],['战略解析与组合对齐','PMP 价值交付 × S09',60]],
+ 5:[['项目组合管理：选择与平衡（维持）','PMP 裁剪 × PRINCE2 商业论证',70],['组织级治理评审','PRINCE2 组织主题',55],['战略引领与标准参与','国标体系 × S09',80]]
+};
+const FOCUS_SUB={2:'学会干活 · 独立负责一般项目',3:'共识促成 · 复杂项目驾驭',4:'战略 · 治理 · 选择与平衡 · 项目组合',5:'维持 · 引领 · 标准参与'};
+function renderDrill(){
+  const n=PROFILE.level,L=LV[n];
+  CURDQ=L.drillSet==='basic'?DQ_BASIC:DQ_ADV;dqDone=0;
+  const depth=n<=2?`L${n} · 知道领会→应用分析`:n===3?'L3 · 应用分析→整合评价':`L${n} · 整合评价`;
+  document.getElementById('drillDepth').textContent=depth;
+  document.getElementById('dqTodo').textContent=CURDQ.length;
+  const nb=document.getElementById('navDq');nb.textContent=CURDQ.length;nb.style.display='';
+  document.getElementById('dqList').innerHTML=CURDQ.map((d,i)=>`
+   <div class="dq"><span class="src"><b>${d.tag}</b> · ${d.src}</span>
+   <div class="q">${d.q}</div>
+   <div class="opts">${d.opts.map((o,j)=>`<div class="opt" onclick="pickDq(${i},${j},this)">${String.fromCharCode(65+j)}. ${o}</div>`).join('')}</div>
+   <div class="exp" id="exp${i}"><b>解析：</b>${d.exp}<br><span style="color:var(--gold)">→ 该卡片已重新调度（间隔重复：1d → 3d）</span></div></div>`).join('');
+  document.getElementById('drillFocus').textContent=n<5?`L${L.tgt} 专项强化`:'L5 维持强化';
+  document.getElementById('drillFocusSub').textContent=FOCUS_SUB[L.focusTag];
+  document.getElementById('focusBody').innerHTML=FOCUS[L.focusTag].map(r=>`
+   <tr><td>${r[0]}</td><td><span class="pill navy">PMP</span> <span class="pill navy">${r[1]}</span></td>
+   <td><div style="width:140px;height:6px;background:var(--paper-2);border-radius:3px"><i style="display:block;width:${r[2]}%;height:100%;background:var(--navy);border-radius:3px"></i></div></td>
+   <td><button class="btn sm">继续</button></td></tr>`).join('');
+}
+window.pickDq=function(i,j,el){
+  const d=CURDQ[i];if(el.parentElement.querySelector('.sel,.right,.wrong'))return;
+  if(j===d.ans){el.classList.add('right')}
+  else{el.classList.add('wrong');el.parentElement.children[d.ans].classList.add('right')}
+  document.getElementById('exp'+i).classList.add('show');
+  dqDone++;document.getElementById('dqTodo').textContent=Math.max(0,CURDQ.length-dqDone);
+  const nb=document.getElementById('navDq');nb.textContent=Math.max(0,CURDQ.length-dqDone);
+  if(dqDone>=CURDQ.length)nb.style.display='none';
+  sideSay('已完成「'+d.tag+'」卡片，M2 标记：会应用 ✓（下次复习 3 天后，调度算法随当前等级出题深度联动）');
+};
+
+/* ================= 成长记录（要求清单随目标级换档） ================= */
+function renderEv(){
+  const n=PROFILE.level,L=LV[n],ev=L.ev;
+  const met=ev.filter(r=>r[3]>=0.9).length;
+  document.getElementById('evTitle').textContent=n<5?`L${L.tgt} 经验硬指标`:'L5 维持监测';
+  document.getElementById('evSeal').textContent=`${met}/${ev.length} 已满足`;
+  document.getElementById('evReq').innerHTML=ev.map(r=>`
+   <div class="gaprow"><span class="nm">${r[0]}</span>
+   <div class="bar"><i style="width:${r[3]*100}%;background:${r[3]>.9?'var(--ok)':r[3]>.6?'var(--warn)':'var(--danger)'}"></i></div>
+   <span class="v">${r[1]} · ${r[2]}</span></div>`).join('');
+}
+const EVS=[
+ ['📄','例外报告 · 经营分析看板成本偏差','教练会话产物 · 10-07',['CSPM 汇报','PRINCE2 例外'],['#项目经历','#人际沟通']],
+ ['📄','数据治理群组 Q3 阶段报告','工作台产物 · 10-05',['CSPM 治理','PRINCE2 进展'],['#项目经历','#治理结构']],
+ ['🎓','内部培训《EVM 实战》2 场','知识贡献 · 09月',['CSPM 培训授课','PMP PDU ×4'],['#知识贡献','#财务']],
+ ['📝','案例复盘：供应商价格锁定缺失','教练复盘产物 · 10-02',['CSPM 案例分享','PMP PDU ×2'],['#知识贡献','#风险机会']],
+ ['🏆','CSPM-4 认证','2025-06',['CSPM L4 依据'],['#资质']]
+];
+document.getElementById('evList').innerHTML=EVS.map(e=>`
+ <div class="evrow"><div class="ic">${e[0]}</div>
+ <div class="nm">${e[1]}<small>${e[3].join(' · ')}</small></div>
+ <span style="font-size:11px;color:var(--ink-3)">${e[2]}</span></div>`).join('')+`<div class="hint">已打标体系：CSPM L5 清单 ✓ · PMP PDU 42/60 ✓ · PRINCE2 CPD 12 分 ✓ —— 一套数据，多头核算。</div>`;
+
+/* ================= 侧边栏对话 ================= */
+function sideSay(t){
+  const box=document.getElementById('asMsgs');
+  const d=document.createElement('div');d.className='msg ai';d.innerHTML=t;box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+function asSend(){
+  const inp=document.getElementById('asTxt');const t=inp.value.trim();if(!t)return;inp.value='';
+  const box=document.getElementById('asMsgs');
+  const m=document.createElement('div');m.className='msg me';m.textContent=t;box.appendChild(m);box.scrollTop=box.scrollHeight;
+  const ty=document.createElement('div');ty.className='typing';ty.innerHTML='<i></i><i></i><i></i>';box.appendChild(ty);box.scrollTop=box.scrollHeight;
+  setTimeout(()=>{
+    ty.remove();
+    let r='收到。基于你的档案（L4→L5 · 弱项：战略/治理/选择平衡），我建议：';
+    if(/汇报|CPI|容差/.test(t))r='这个场景适合走「向上汇报」教练闭环——容差预警的上下文我已备好（CPI 0.87 / 根因 / 两方案对比）。<br><br><button class="btn sm pri" onclick="startFromAlert()">一键进入 GROW 流程</button>';
+    else if(/谈判|资源/.test(t))r='「资源谈判」场景已就绪，推荐组合 C04（框架效应→博弈论→互惠），将计入「谈判」指标行为证据。<br><br><button class="btn sm pri" onclick="go(\'coach\');startScene(\'negotiate\')">开始训练</button>';
+    else if(/复盘/.test(t))r='复盘场景用 C06 系统思考组合（逆向→飞轮→二阶），产物自动归档为知识贡献证据。';
+    else if(/复习|强化|卡片/.test(t))r='今日队列剩 '+(7-dqDone)+' 张，完成后「选择与平衡」卡片进入 3 天间隔档。<br><br><button class="btn sm pri" onclick="go(\'drill\')">去强化营</button>';
+    sideSay(r);
+  },700);
+}
+document.getElementById('asTxt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();asSend()}});
+
+/* ================= 冷启动向导（Flow 0 演示） ================= */
+const COLDQ=[
+ {t:'1. 你目前的角色是？',o:[['项目团队成员 / 项目助理',1],['一般项目负责人',3],['复杂项目 / 项目群组负责人',5]]},
+ {t:'2. 项目管理领域工作年限？',o:[['不足 1 年',1],['1-3 年',2],['3-8 年',4],['8 年以上',5]]},
+ {t:'3. 你的日常工作重心？',o:[['执行分配的任务并汇报进展',1],['独立管理一般项目的目标与团队',3],['多项目统筹 / 治理 / 战略落地',5]]}
+];
+let coldAns=[0,0,0];
+function openCold(){
+  coldAns=[0,0,0];
+  document.getElementById('coldQs').innerHTML=COLDQ.map((q,i)=>`
+   <div class="cq"><b>${q.t}</b><div class="opts">${q.o.map((o,j)=>`
+   <div class="opt" id="cq${i}_${j}" onclick="coldPick(${i},${j})">${o[0]}</div>`).join('')}</div></div>`).join('');
+  document.getElementById('coldRes').style.display='none';
+  const g=document.getElementById('coldGo');g.disabled=true;g.style.opacity=.5;
+  document.getElementById('cold').classList.add('on');
+}
+function coldPick(i,j){
+  coldAns[i]=COLDQ[i].o[j][1];
+  COLDQ[i].o.forEach((_,k)=>document.getElementById(`cq${i}_${k}`).classList.toggle('sel',k===j));
+  if(coldAns.every(v=>v>0)){
+    const sug=Math.max(1,Math.min(5,Math.floor(Math.min(...coldAns))));
+    const r=document.getElementById('coldRes');
+    r.style.display='block';
+    r.innerHTML=`评估完成（短板原则 min 取级）：建议定位 <b>L${sug} · ${LVN[sug]}</b><br><span style="font-size:12px;color:var(--ink-3)">真实系统：简历/飞书结构化初稿 + 12-15 道情景题 → 三维雷达</span>`;
+    const g=document.getElementById('coldGo');g.disabled=false;g.style.opacity=1;
+    g.onclick=()=>closeCold(sug);
+  }
+}
+function closeCold(lvl){
+  document.getElementById('cold').classList.remove('on');
+  applyProfile(lvl);
+  go('dash');
+}
+
+/* ================= 成长路径（M5 + F3 + 45模型矩阵） ================= */
+const Q4P={
+ 1:[['掌握范围/进度/质量三域知识','知识 · L2 应达深度','知识卡 ×15 + 应用分析题',13,'2/15'],['攒满 1 年项目经验','经验硬指标','工作包执行+产物归档',60,'60%']],
+ 2:[['拿下首个完整项目周期','计划与控制','全流程走查 + 项目复盘',40,'40%'],['冲突与谈判入门','素质 · L3 新增','C04 场景 ×3 + 5Why ×4',33,'1/3']],
+ 3:[['复杂项目独立操盘','经验 · L4','风险决策 C08 ×4 + 应对预案',50,'2/4'],['知识贡献起步','知识贡献','案例分享 2 篇',50,'1/2']],
+ 4:[['补齐 L5 素质短板','战略/治理/选择平衡','专项卡 + 群组治理方案设计',35,'35%'],['标准参与破零','知识贡献 · 标准','联络标委会 + 提案 1 份',10,'0/1']],
+ 5:[['维持监测与知识传承','标准/带教','标准推进 + 带教 2 人',60,'60%']]
+};
+const JOURNEY={1:'学会干活',2:'独立带项目',3:'驾驭复杂',4:'经营组织',5:'维持与传承'};
+function renderGrow(){
+  const n=PROFILE.level;
+  document.getElementById('q4Seal').textContent='剧本：L'+n+'→'+(n<5?'L'+(n+1):'L5')+' '+JOURNEY[n<5?n:5];
+  document.getElementById('q4Body').innerHTML=Q4P[n].map(r=>`
+   <tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td style="min-width:110px"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:var(--paper-2);border-radius:3px"><i style="display:block;height:100%;background:var(--navy);border-radius:3px;width:${r[3]}%"></i></div><span class="mono" style="font-size:11px;color:var(--ink-3)">${r[4]}</span></div></td></tr>`).join('');
+}
+/* 45 模型矩阵（真实模型名，取自 strategy-library；掌握度为档案训练事实，不随等级切换） */
+const MODELS=[
+ [['确认偏误',2],['锚定效应',1],['沉没成本谬误',3],['可得性偏差',0],['损失厌恶',0]],
+ [['费曼学习法',3],['刻意练习',2],['间隔重复',0],['主动回忆',0],['元认知',0]],
+ [['帕累托法则',2],['第一性原理',1],['逆向思维',1],['奥卡姆剃刀',0],['重新定义问题',0]],
+ [['飞轮效应',2],['S形曲线',0],['临界点',0],['惯性',0],['强制函数',0]],
+ [['相关≠因果',1],['幸存者偏差',0],['大数定律',0],['基础比率谬误',0],['A/B测试',0]],
+ [['二阶思维',3],['成本收益分析',2],['情景分析',1],['决策树',0],['预期值',0]],
+ [['博弈论',2],['互惠',1],['囚徒困境',0],['以牙还牙',0],['承诺',0]],
+ [['成长型思维',2],['马斯洛需求层次',1],['皮格马利翁效应',0],['彼得原理',0],['冒名顶替综合征',0]],
+ [['护城河',0],['产品市场匹配',0],['颠覆性创新',0],['转型',0],['跨越鸿沟',0]]
+];
+const MSN=['M0','M1','M2','M3'],MSN_T=['未接触','已认识','会应用','能教授'];
+function renderMatrix(){
+  let h='<div></div>'+['模型1','模型2','模型3','模型4','模型5'].map(x=>`<div class="hd">${x}</div>`).join('');
+  MODELS.forEach((row,i)=>{
+    h+=`<div class="rw">S0${i+1}</div>`;
+    row.forEach(([name,m])=>{
+      h+=`<div class="mcell mc${m}" onclick="mxSay('${name}',${m},${i})">${name}<small>${MSN[m]} ${MSN_T[m]}</small></div>`;
+    });
+  });
+  document.getElementById('mxGrid').innerHTML=h;
+}
+window.mxSay=function(name,m,si){
+  const tip=m===0?`M0 未接触——推荐器会在匹配场景时优先曝光它（M0 优先原则）`
+   :m===1?`M1 已认识——下次教练会话中被引用即可升至 M2`
+   :m===2?`M2 会应用——把 W 产物整理成可分享方法论卡即可冲 M3（计入知识贡献证据）`
+   :`M3 能教授——已计入成长记录「知识贡献」，可发起带教/内训`;
+  sideSay(`「${name}」（S0${si+1} 场景）当前 <b>${MSN[m]} · ${MSN_T[m]}</b>。${tip}。`);
+};
+/* 成长曲线 */
+const growChart=echarts.init(document.getElementById('growChart'));
+function drawGrow(){
+  const ms=['5月','6月','7月','8月','9月','10月'];
+  growChart.setOption({
+    tooltip:{trigger:'axis'},legend:{bottom:0,textStyle:{color:'#5c564a',fontSize:11}},
+    grid:{left:44,right:44,top:24,bottom:44},
+    xAxis:{type:'category',data:ms,axisLine:{lineStyle:{color:'#d9d2c0'}},axisLabel:{color:'#5c564a'}},
+    yAxis:[
+      {type:'value',min:50,max:80,name:'素质均分',nameTextStyle:{color:'#8a8271'},splitLine:{lineStyle:{color:'#e7e0cd'}},axisLabel:{color:'#5c564a'}},
+      {type:'value',name:'会话数',nameTextStyle:{color:'#8a8271'},splitLine:{show:false},axisLabel:{color:'#5c564a'}}
+    ],
+    series:[
+      {name:'素质均分(行为证据)',type:'line',smooth:true,data:[62,64,66,68,70,71],
+       lineStyle:{color:'#c0392b',width:2.5},itemStyle:{color:'#c0392b'},areaStyle:{color:'rgba(192,57,43,.08)'},
+       markPoint:{data:[{coord:['9月',70],value:'L4 确认',itemStyle:{color:'#a8842c'},label:{color:'#a8842c',fontSize:10}}]}},
+      {name:'教练会话数/月',type:'bar',yAxisIndex:1,barWidth:14,itemStyle:{color:'#1f3a5f',opacity:.55,borderRadius:[3,3,0,0]},data:[3,5,6,7,9,12]}
+    ]},true);
+}
+/* F3 月度模拟 */
+const MSTEPS=['聚合三维分（自评20% + 情景40% + 行为证据40%）','雷达重算 · 与上月对比检测变化','差距 Top5 对照 gbt41831.yaml','grow-planner 调整季度计划','生成成长月报并推送'];
+let msRun=false;
+window.runMonthly=function(){
+  if(msRun)return;msRun=true;
+  const box=document.getElementById('msList');box.innerHTML='';
+  document.getElementById('msBtn').style.opacity=.5;
+  MSTEPS.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='mstep';d.innerHTML=`<span class="mono">${i+1}.</span>${s}<span class="sp"></span>`;box.appendChild(d);
+  });
+  const steps=[...box.children];
+  steps.forEach((el,i)=>{
+    setTimeout(()=>{
+      steps.forEach(x=>x.classList.remove('run'));
+      el.classList.add('run');el.querySelector('.sp').textContent='执行中…';
+    },i*900);
+    setTimeout(()=>{
+      el.classList.remove('run');el.classList.add('ok');el.querySelector('.sp').textContent='✓ 写库';
+    },i*900+700);
+  });
+  setTimeout(()=>{openMrep();msRun=false;document.getElementById('msBtn').style.opacity=1;},MSTEPS.length*900+400);
+};
+function openMrep(){
+  const n=PROFILE.level,L=LV[n],g=L.gaps;
+  document.getElementById('mrTitle').textContent=`成长月报 · 2026-10 · L${n}（${LVN[n]}）`;
+  document.getElementById('mrSub').textContent=`目标级 L${L.tgt} · 剧本「${JOURNEY[n<5?n:5]}」 · 三维证据融合 · 短板原则`;
+  document.getElementById('mrBody').innerHTML=`
+   <div style="display:flex;gap:12px;margin-bottom:14px">
+     <div class="card" style="flex:1;padding:12px;text-align:center"><b style="font-family:var(--serif);font-size:20px;color:var(--ok)">维持 L${n}</b><div style="font-size:11px;color:var(--ink-3)">等级定位</div></div>
+     <div class="card" style="flex:1;padding:12px;text-align:center"><b style="font-family:var(--serif);font-size:20px;color:var(--cinnabar)">${L.kpis[0]}</b><div style="font-size:11px;color:var(--ink-3)">累计教练会话</div></div>
+     <div class="card" style="flex:1;padding:12px;text-align:center"><b style="font-family:var(--serif);font-size:20px;color:var(--navy)">${L.kpis[1]}</b><div style="font-size:11px;color:var(--ink-3)">模型覆盖度</div></div>
+   </div>
+   <table class="tb"><tr><th>指标</th><th>月变化</th><th>依据（行为证据）</th></tr>
+   <tr><td>${g[0][0].split('（')[0]}</td><td class="mono" style="color:var(--ok)">+3 ↑</td><td>专项卡完成 + 教练会话 ×3</td></tr>
+   <tr><td>${g[1] ? g[1][0].split('（')[0] : '计划与控制'}</td><td class="mono" style="color:var(--ok)">+2 ↑</td><td>例外报告产物 + 纠偏记录</td></tr>
+   <tr><td>人际沟通</td><td class="mono" style="color:var(--danger)">−2 ↓</td><td>本月 0 次汇报演练（取证任务已生成）</td></tr></table>
+   <div style="margin-top:14px;padding:12px;background:var(--paper-2);border-radius:8px;font-size:13px;line-height:1.8">
+   <b>下月重点：</b>${g[0][0]}<br><b>推荐场景：</b>C14 干系人博弈 / 例外应对（命中弱项）<br><b>系统动作：</b>已生成 1 条取证任务 + 复习队列重排（证据不足指标优先）</div>`;
+  document.getElementById('mrep').classList.add('on');
+}
+window.mrApply=function(){
+  document.getElementById('mrep').classList.remove('on');
+  sideSay('月报建议已写入 <b>11 月成长计划</b>：新增 2 条训练任务、1 条取证任务（人际沟通），季度计划进度已同步刷新。');
+};
+/* 飞书同步演示（P2 读流） */
+window.feishuSync=function(){
+  const log=document.getElementById('syncLog');log.style.display='block';log.innerHTML='';
+  const lines=[
+    '06:00:01 连接飞书 OpenAPI（token 本地缓存）……',
+    '06:00:02 拉取多维表「经营分析看板 · 任务」 128 行 <b>✓</b>',
+    '06:00:05 拉取云文档「周报归档」 12 篇 <b>✓</b>',
+    '06:00:08 拉取日历 本周会议 3 场 <b>✓</b>',
+    '06:00:10 EVM 增量计算 → 周报素材包就绪 <b>✓</b>',
+    '06:00:11 写入 feishu_sync_log · 等待周一 08:00 周报草稿 <b>✓</b>'
+  ];
+  lines.forEach((t,i)=>setTimeout(()=>{
+    const d=document.createElement('div');d.innerHTML=t;log.appendChild(d);
+    if(i===lines.length-1)sideSay('飞书同步完成（P2 读流）：128 任务行 / 12 文档 / 3 会议。周一 08:00 将自动生成 W42 周报草稿。');
+  },i*650));
+};
+
+/* init */
+renderMatrix();
+applyProfile(4,true);
+openCold();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "pm-master-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bash scripts/with-env.sh src/index.mjs",
+    "secrets": "bash scripts/secrets.sh",
+    "test:acceptance": "node --test test/acceptance.test.mjs test/api.boundary.test.mjs",
+    "test:e2e": "node --test test/e2e.render.test.mjs"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.0"
+  }
+}
