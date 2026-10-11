@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { IconBulb, IconPlus } from '@tabler/icons-react';
+import { IconBulb, IconPlus, IconUpload } from '@tabler/icons-react';
 import { toast, Modal, Field } from './ui.jsx';
+import Import from './Import.jsx';
 
 // P2 项目工作台：项目列表 + 四件套（周报/风险/干系人/会议）+ 容差预警黄金闭环
 // R2.4：W1.3 智能关联提示卡（新风险/超容差时工具提示）+ W3.3 组合视角 tab
@@ -24,6 +25,7 @@ export default function Workbench({ goCoach, onContext }) {
   const [showNew, setShowNew] = useState(false);      // 新建项目 Modal
   const [newName, setNewName] = useState('');
   const [soOut, setSoOut] = useState(null);           // 二阶推演结果 Modal
+  const [showImport, setShowImport] = useState(false); // R7.0 P2 数据流入向导
 
   useEffect(() => { loadProjects(); loadAlerts(); }, []);
   useEffect(() => { if (pid) loadAll(pid); }, [pid]);
@@ -162,7 +164,7 @@ export default function Workbench({ goCoach, onContext }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 14, height: '100%' }}>
       <div className="card" style={{ overflow: 'auto' }}>
-        <h3>在管项目 <button className="mini" onClick={() => setShowNew(true)} title="新建项目"><IconPlus size={14} stroke={2} /></button></h3>
+        <h3>在管项目 <button className="mini" onClick={() => setShowImport(true)} title="数据流入：粘贴导入 EVM/风险/会议/干系人"><IconUpload size={13} stroke={1.8} /></button><button className="mini" onClick={() => setShowNew(true)} title="新建项目"><IconPlus size={14} stroke={2} /></button></h3>
         {projects.map((p) => (
           <div key={p.id} className={`sc ${pid === p.id ? 'sel' : ''}`} onClick={() => setPid(p.id)}>
             <b>{p.name}</b><small>{p.complexity} · 容差 {JSON.parse(p.tolerances ?? '{}').cost * 100 ?? '-'}%</small>
@@ -438,6 +440,19 @@ export default function Workbench({ goCoach, onContext }) {
             <div className="notice" style={{ marginBottom: 0 }}>{soOut.question}</div>
           </div>
         </Modal>
+      )}
+
+      {/* R7.0 P2 数据流入向导；EVM 导入命中当前项目 → 预填周报输入框（黄金闭环入口） */}
+      {showImport && (
+        <Import onClose={() => setShowImport(false)} onDone={({ kind, rows, result }) => {
+          loadProjects();
+          if (pid) loadAll(pid);
+          if (kind === 'evm') {
+            const hit = result.results.find((x) => x.ok && x.project_id === pid);
+            const row = hit && rows[hit.i];
+            if (row) { setEvmIn({ pv: Number(row.pv), ev: Number(row.ev), ac: Number(row.ac) }); setTab('weekly'); }
+          }
+        }} />
       )}
     </div>
   );

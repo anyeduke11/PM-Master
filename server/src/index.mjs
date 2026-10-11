@@ -4,6 +4,8 @@ import { loadStandard, levelRequirements, gapAnalysis } from './standard.mjs';
 import { db, getProfile, updateProfile } from './db.mjs';
 import { streamChat, buildSystemPrompt, llmStats } from './agent.mjs';
 import { cfg, allSettings, setSettings, systemCore } from './settings.mjs';   // R7.0 P1 设置中心
+import { importKinds, importPreview, importCommit, importLogs } from './import-flow.mjs';   // R7.0 P2 数据流入
+import { toolUsage, assignToolTask } from './tools-usage.mjs';                              // R7.0 P2 工具频率
 import { listScenarios, createSession, loadSession, handleMessage, control, closeSession, phasePlan } from './coach.mjs';
 
 const app = Fastify({ logger: { transport: undefined } });
@@ -320,6 +322,17 @@ app.get('/api/settings/system', async () => ({
   ...systemCore(),
   feishu_configured: feishuConfigured(),   // 飞书凭据状态（同样仅布尔，不回显）
 }));
+
+// ---------- R7.0 P2 数据流入 + 工具频率 ----------
+app.get('/api/import/kinds', async () => importKinds());
+app.post('/api/import/preview', async (req) => importPreview({ kind: req.body?.kind, text: req.body?.text, source: req.body?.source }));
+app.post('/api/import/commit', async (req) => importCommit({ kind: req.body?.kind, rows: req.body?.rows, source: req.body?.source }));
+app.get('/api/import/logs', async (req) => importLogs(req.query?.limit));
+app.get('/api/tools/usage', async () => toolUsage());
+app.post('/api/tools/usage/task', async (req) => {
+  if (req.body?.tool_id == null) throw badRequest('tool_id 必填');
+  return assignToolTask(req.body.tool_id);
+});
 app.post('/api/growth/monthly-report', async () => {
   try { return { report: monthlyReport() }; }
   catch (e) { return { error: String(e.message) }; }

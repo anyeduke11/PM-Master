@@ -55,7 +55,7 @@ export async function generateWeekly(projectId, { pv, ev, ac }) {
   const project = db.prepare('SELECT * FROM projects WHERE id=?').get(projectId);
   if (!project) throw notFound('project not found');
   const e = evm({ pv, ev, ac });
-  checkTolerances(project, e);   // 生成同时跑容差（黄金闭环入口）
+  const violations = checkTolerances(project, e);   // 生成同时跑容差（黄金闭环入口）；R7.0 P2 修复：原未接收返回值致 L76 ReferenceError
 
   const risks = db.prepare(`SELECT title, probability, impact, strategy, is_issue FROM risks WHERE project_id=? AND status='open' LIMIT 5`).all(projectId);
   const actions = db.prepare('SELECT title, owner, due_date, status FROM action_items WHERE project_id=? ORDER BY due_date LIMIT 6').all(projectId);

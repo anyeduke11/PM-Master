@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink } from '@tabler/icons-react';
+import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles } from '@tabler/icons-react';
 import { toast } from './ui.jsx';
 
 // R7.0 P1 设置中心：A 系统状态 / B LLM 与模型（热切换）/ C 可观测性 / E 功能开关
+// R7.0 P2：K 数据流入（导入历史与说明）/ G 工具频率（使用排行/冷门推荐/训练任务）
 // 左锚点导航 + 右分区卡片；窄屏导航横滚、单列堆叠（CSS 断点处理）
 const SECTIONS = [
   ['sys', '系统状态', IconSettings],
   ['llm', 'LLM 与模型', IconRobot],
   ['obs', '可观测性', IconChartDots3],
   ['feature', '功能开关', IconToggleLeft],
+  ['import', '数据流入', IconDownload],
+  ['tools', '工具频率', IconTrendingUp],
 ];
 
 const SRC_LABEL = { db: 'DB 覆盖', env: 'env', default: '默认' };
@@ -22,6 +25,8 @@ export default function Settings() {
   const [purpose, setPurpose] = useState('');
   const [draft, setDraft] = useState({});           // B/E 区编辑草稿 {key: value}
   const [saving, setSaving] = useState(false);
+  const [logs, setLogs] = useState(null);           // R7.0 P2 K 区：导入历史
+  const [usage, setUsage] = useState(null);         // R7.0 P2 G 区：工具频率聚合
   const refs = useRef({});
 
   async function j(url, opts) {
@@ -31,10 +36,11 @@ export default function Settings() {
   }
   async function loadAll() {
     try {
-      const [sys, set, st] = await Promise.all([
+      const [sys, set, st, lg, us] = await Promise.all([
         j('/api/settings/system'), j('/api/settings'), j('/api/llm/stats'),
+        j('/api/import/logs'), j('/api/tools/usage'),
       ]);
-      setSystem(sys); setSettings(set); setStats(st); setDraft({});
+      setSystem(sys); setSettings(set); setStats(st); setLogs(lg); setUsage(us); setDraft({});
     } catch (e) { toast(`设置加载失败：${e.message}`, 'err'); }
   }
   useEffect(() => { loadAll(); }, []);
@@ -73,6 +79,17 @@ export default function Settings() {
   function goto(id) {
     setSec(id);
     refs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // G 区：冷门工具 → 训练任务（服务端幂等；成功后刷新排行）
+  async function assignTask(tool) {
+    try {
+      const r = await j('/api/tools/usage/task', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool_id: tool.id }),
+      });
+      toast(r.existing ? `「${tool.name}」训练任务已在清单中` : `已为「${tool.name}」生成训练任务`, 'ok');
+      setUsage(await j('/api/tools/usage'));
+    } catch (e) { toast(`生成失败：${e.message}`, 'err'); }
   }
 
   // —— 单行渲染器：按 type 出控件；「恢复」按钮=写 null 删 KV 行 ——
@@ -118,7 +135,7 @@ export default function Settings() {
           </button>
         ))}
         <div style={{ marginTop: 8, padding: '8px 6px 2px', borderTop: '1px dashed var(--line)', fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.7 }}>
-          P2 起陆续开放：数据流入 / 工具频率 / 巡检简报 / 提示词库 / 蒸馏与记忆
+          P3 起陆续开放：每日巡检简报 / 提示词库；P4：蒸馏画像 / 记忆与上下文
         </div>
       </nav>
 
@@ -253,6 +270,86 @@ export default function Settings() {
             <button className="mini" onClick={() => window.open('/api/export/json', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 数据快照 JSON</button>
             <button className="mini" onClick={() => window.open('/api/scheduler', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 调度任务状态</button>
           </div>
+        </div>
+
+        {/* K 数据流入（R7.0 P2）：导入历史与说明（导入操作入口在工作台） */}
+        <div className="card" ref={(el) => (refs.current.import = el)}>
+          <h3>数据流入 · 导入历史</h3>
+          <div className="notice">
+            导入入口在<b>项目工作台 → 在管项目 → 上传图标</b>：粘贴表格/清单文本（或拖入 .txt/.md/.csv）→ AI 抽取预览 → 逐行编辑勾选 → 入库。
+            四类：EVM 度量（导入后可直接生成周报）/ 风险登记 / 会议行动项 / 干系人。校验、项目匹配、去重全部服务端代码执行。
+          </div>
+          {!logs && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+          {logs && (
+            <table className="tb">
+              <thead><tr><th>时间</th><th>类型</th><th>来源</th><th>入库</th><th>跳过</th><th>状态</th></tr></thead>
+              <tbody>
+                {logs.map((l) => (
+                  <tr key={l.id}>
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--ink3)' }}>{l.created_at?.slice(5, 16)}</td>
+                    <td>{l.kind}</td><td>{l.source}</td>
+                    <td className="mono" style={{ color: 'var(--ok)' }}>{l.items}</td>
+                    <td className="mono" style={{ color: l.skipped ? 'var(--warn)' : undefined }}>{l.skipped}</td>
+                    <td>{l.status === 'ok' ? <span style={{ color: 'var(--ok)' }}>✓ 全部</span> : <span style={{ color: 'var(--warn)' }}>部分</span>}</td>
+                  </tr>
+                ))}
+                {logs.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--ink3)' }}>暂无导入记录</td></tr>}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* G 工具频率（R7.0 P2）：138 工具使用排行 + 高杠杆冷门 + 一键训练任务 */}
+        <div className="card" ref={(el) => (refs.current.tools = el)}>
+          <h3>工具频率管理</h3>
+          {!usage && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+          {usage && (
+            <>
+              <div className="kpi-row">
+                {[['工具总数', usage.total, 'var(--text)'], ['已使用', usage.used_count, 'var(--accent)'],
+                  ['覆盖率', usage.coverage == null ? '-' : `${Math.round(usage.coverage * 100)}%`, usage.coverage > 0.3 ? 'var(--ok)' : 'var(--warn)']].map(([n, v, c]) => (
+                  <div key={n} className="kpi"><b style={{ color: c }}>{v}</b><span>{n}</span></div>
+                ))}
+              </div>
+              {usage.top_ka?.length > 0 && (
+                <div style={{ marginBottom: 8, fontSize: 11.5, color: 'var(--ink3)' }}>
+                  过程引用最密集知识域：{usage.top_ka.map((k) => `${k.ka}(${k.n})`).join(' · ')}
+                </div>
+              )}
+              <b style={{ fontSize: 12.5 }}>常用工具 Top {Math.min(usage.top.length, 15)}</b>
+              {usage.top.length === 0 && <div className="empty" style={{ margin: '6px 0' }}>尚无使用记录——去知识库对工具开四步教学或实操练习</div>}
+              {usage.top.length > 0 && (
+                <table className="tb" style={{ margin: '6px 0 12px' }}>
+                  <thead><tr><th>工具</th><th>类别</th><th>使用</th><th>教学/实操</th><th>M 档</th><th>最近使用</th></tr></thead>
+                  <tbody>
+                    {usage.top.slice(0, 15).map((t) => (
+                      <tr key={t.id}>
+                        <td><b>{t.name}</b></td><td style={{ color: 'var(--ink3)' }}>{t.category ?? '-'}</td>
+                        <td className="mono">{t.usage}</td><td className="mono">{t.taught}/{t.practiced}</td>
+                        <td><span className={`itto-vd ${t.m >= 3 ? 'good' : t.m === 2 ? 'ok' : 'weak'}`}>{t.m_label}</span></td>
+                        <td className="mono" style={{ fontSize: 10.5, color: 'var(--ink3)' }}>{t.last_used?.slice(0, 10) ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <b style={{ fontSize: 12.5 }}>高杠杆冷门（过程引用多但零使用）</b>
+              <div style={{ display: 'grid', gap: 6, margin: '6px 0' }}>
+                {usage.cold.map((t) => (
+                  <div key={t.id} className="mx-row">
+                    <b>{t.name}</b>
+                    <span className="pill">{t.category}</span>
+                    <small style={{ color: 'var(--ink3)' }}>{t.proc_count} 个过程引用</small>
+                    <button className="mini pri" style={{ marginLeft: 'auto' }} onClick={() => assignTask(t)}>
+                      <IconSparkles size={11} stroke={2} /> 生成训练任务
+                    </button>
+                  </div>
+                ))}
+                {usage.cold.length === 0 && <div className="empty">所有被引用工具都已有使用记录</div>}
+              </div>
+              <small style={{ color: 'var(--ink3)' }}>{usage.note}；训练任务写入成长路径「训练任务」清单（幂等，重复指派不重建）</small>
+            </>
+          )}
         </div>
       </div>
     </div>

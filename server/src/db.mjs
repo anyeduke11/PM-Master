@@ -314,6 +314,17 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL,                              -- 统一存字符串，读取时按 DEFAULTS 类型转换
   updated_at TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- ===== R7.0 P2 数据流入：导入历史（preview 瞬态不落库，commit 成功/部分成功落一行） =====
+CREATE TABLE IF NOT EXISTS import_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,                               -- evm | risks | meetings | stakeholders
+  source TEXT DEFAULT 'paste',                      -- paste | file（前端读取后均为文本）
+  items INTEGER DEFAULT 0,                          -- 成功入库行数
+  skipped INTEGER DEFAULT 0,                        -- 校验失败/重复跳过行数
+  status TEXT DEFAULT 'ok',                         -- ok | partial
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
 `);
 
 // 初始化一号用户档案（实例数据仅存库，不进代码）

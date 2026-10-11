@@ -25,6 +25,9 @@ process.env.PM_DB_PATH = DB;   // 必须早于 src 模块导入（db.mjs 打开�
 
 const { db, getProfile, updateProfile } = await import('../src/db.mjs');
 const { cfg, allSettings, setSettings } = await import('../src/settings.mjs');   // R7.0 P1 设置中心
+const { importPreview, importCommit, importLogs } = await import('../src/import-flow.mjs');   // R7.0 P2 数据流入
+const { toolUsage, assignToolTask } = await import('../src/tools-usage.mjs');                 // R7.0 P2 工具频率
+const { generateWeekly } = await import('../src/workbench.mjs');                              // R7.0 P2 周报回归
 const { review } = await import('../src/drill.mjs');
 const { seedCards } = await import('../src/seeds.mjs');
 const { seedItto, genPractice, submitPractice } = await import('../src/itto.mjs');
@@ -669,4 +672,74 @@ test('J3 assistant_prefs 迁移后契约：偏好走 KV、summary 归还原生�
   updateProfile({ assistant_prefs: null });
   assert.equal(getProfile().assistant_prefs, null, 'null 应删除偏好');
   assert.equal(db.prepare(`SELECT COUNT(*) c FROM settings WHERE key = 'assistant.suggest_off'`).get().c, 0, 'KV 行应被清除');
+});
+
+// ============ J4-J6 R7.0 P2 数据流入 + 工具频率（mock 抽取全链路契约） ============
+
+test('J4 数据流入：preview（mock 抽取确定性）→ commit 校验/去重/项目匹配 → 历史落行', async () => {
+  const proj = db.prepare(`INSERT INTO projects (name) VALUES ('J4 导入桩项目')`).run();
+  const pid = Number(proj.lastInsertRowid);
+  // 未知 kind / 过短文本拒绝
+  await assert.rejects(() => importPreview({ kind: 'nope', text: 'x'.repeat(20) }), /未知导入类型/);
+  await assert.rejects(() => importPreview({ kind: 'risks', text: '短' }), /资料太短/);
+  // mock 抽取：两行风险（逗号分隔：项目名,标题）
+  const pv = await importPreview({ kind: 'risks', text: `J4 导入桩项目,核心工程师离职\nJ4 导入桩项目,合同价格未锁定` });
+  assert.equal(pv.stats.total, 2, 'mock 应抽出 2 行');
+  assert.equal(pv.stats.valid, 2, '两行均应通过校验并匹配项目');
+  assert.equal(pv.rows[0].project_id, pid, '项目名 norm 匹配到 id');
+  // commit：首行入库、重名行拒绝（服务端重算为权威；全行失败 → 400 fail loud，不静默零入库）
+  const c1 = await importCommit({ kind: 'risks', rows: pv.rows });
+  assert.equal(c1.inserted, 2, '首次两行都入库');
+  await assert.rejects(async () => importCommit({ kind: 'risks', rows: [{ project_name: 'Ｊ４　导入桩项目', title: '核心工程师离职' }] }),
+    /重复/, '全重复应 400 且原因可读（全半角归一后仍判重）');
+  // 全失败 → 400 且不留日志
+  await assert.rejects(async () => importCommit({ kind: 'risks', rows: [{ project_name: '不存在项目', title: 'x' }] }), /未通过校验/);
+  assert.equal(db.prepare(`SELECT COUNT(*) c FROM import_logs WHERE kind='risks' AND status='failed'`).get().c, 0, '零入库不落日志');
+  // 历史：一次全成 ok
+  const logs = importLogs();
+  assert.equal(logs[0].kind, 'risks');
+  assert.equal(logs[0].status, 'ok');
+  assert.equal(logs[0].items, 2);
+  // EVM 导入：artifact 落 evm_import + JSON 完整
+  const evm = await importCommit({ kind: 'evm', rows: [{ project_name: 'J4 导入桩项目', pv: 420, ev: 398, ac: 458 }] });
+  const art = db.prepare('SELECT type, evm, status FROM project_artifacts WHERE id=?').get(evm.results[0].id);
+  assert.equal(art.type, 'evm_import');
+  assert.deepEqual(JSON.parse(art.evm), { pv: 420, ev: 398, ac: 458 });
+  assert.equal(art.status, 'imported');
+  // 会议：行动项级联
+  const mt = await importCommit({ kind: 'meetings', rows: [{ project_name: 'J4 导入桩项目', title: 'J4 复盘会', actions: [{ title: '锁定合同价' }] }] });
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM action_items WHERE meeting_id=?').get(mt.results[0].id).c, 1, '行动项级联入库');
+});
+
+test('J5 工具频率：使用聚合/覆盖率/冷门排序/训练任务幂等', () => {
+  const tool = db.prepare(`SELECT id, name FROM itto_tools WHERE EXISTS (SELECT 1 FROM itto_links l WHERE l.tool_id=itto_tools.id AND l.kind='tool') LIMIT 1`).get();
+  assert.ok(tool, '种子应有被过程引用的工具');
+  const before = toolUsage();
+  assert.ok(before.total > 0 && before.coverage != null, '聚合应有基数');
+  // 造使用：开课 1 次 + 实操 1 次 → 该工具进入 top 且 usage=2
+  db.prepare(`INSERT INTO itto_tutor (tool_id, step, mastery) VALUES (?, 'explain', 1)`).run(tool.id);
+  db.prepare(`INSERT INTO itto_practice (process_id, tool_id, question, answer, score, verdict) VALUES (NULL, ?, 'q', 'a', 75, 'ok')`).run(tool.id);
+  const after = toolUsage();
+  const hit = after.top.find((t) => t.id === tool.id);
+  assert.ok(hit && hit.usage >= 2, '使用应计入排行');
+  assert.ok(after.used_count >= before.used_count, '覆盖工具数不减');
+  // 冷门：零使用按 proc_count 降序（杠杆优先）
+  for (let i = 1; i < after.cold.length; i++) assert.ok(after.cold[i - 1].proc_count >= after.cold[i].proc_count, '冷门应按过程引用数降序');
+  // 训练任务：生成 + 幂等（同名 open 不重建）
+  const t1 = assignToolTask(tool.id);
+  assert.ok(t1.task_id > 0 && !t1.existing);
+  const t2 = assignToolTask(tool.id);
+  assert.equal(t2.existing, true, '重复指派应幂等');
+  assert.equal(t2.task_id, t1.task_id);
+  const task = db.prepare('SELECT type, source FROM training_tasks WHERE id=?').get(t1.task_id);
+  assert.deepEqual([task.type, task.source], ['知识库训练', '工具频率']);
+  assert.throws(() => assignToolTask(999999), /不存在/);
+});
+
+test('J6 周报生成回归：容差违规 hints 不再 ReferenceError（P2 修复存量 bug）', async () => {
+  const proj = db.prepare(`INSERT INTO projects (name, tolerances) VALUES ('J6 容差桩', '{"cost":0.1}')`).run();
+  const out = await generateWeekly(Number(proj.lastInsertRowid), { pv: 100, ev: 90, ac: 110 });   // CPI 0.818 < 0.9 必越界
+  assert.ok(out.markdown, 'mock 周报应生成');
+  assert.ok(out.alerts.some((a) => a.dimension === 'cost'), '越界应产 alert');
+  assert.ok(Array.isArray(out.hints), 'hints 应为数组（原 violations 未定义即在此行崩溃）');
 });

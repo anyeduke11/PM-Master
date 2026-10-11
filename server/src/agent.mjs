@@ -300,6 +300,31 @@ export async function assistantChat({ text, pageContext, profile }) {
   return out ?? {};
 }
 
+// ================= R7.0 P2 数据流入：粘贴文本 → 结构化行抽取（快模型；类型由用户先选，LLM 只抽字段） =================
+const IMPORT_SCHEMA = {
+  evm: '每行一条 EVM：{project_name, pv, ev, ac}（三数为正数，来自计划值/挣值/实际成本）',
+  risks: '每行一条风险：{project_name, title(≤60字), probability(0-1), impact(0-1), strategy(可空)}',
+  meetings: '每行一条会议：{project_name, title(≤60字), held_at(YYYY-MM-DD 可空), actions:[{title, owner, due_date}]（无行动项给 []）}',
+  stakeholders: '每行一条干系人：{project_name, name, power(1-10), interest(1-10), current_engagement(支持/中立/反对等), desired_engagement}',
+};
+
+export async function importExtractChat({ kind, text }) {
+  const out = await callJSON({
+    system: [
+      `你是 PM-Master 数据导入抽取器（${IMPORT_SCHEMA[kind] ?? IMPORT_SCHEMA.risks}）。`,
+      '从用户粘贴的原始资料（表格复制文本/清单/纪要片段）中抽取结构化行：',
+      '1) 只抽取资料中有依据的内容，不臆造；缺的字段给该类型合理默认值；',
+      '2) project_name 取资料中出现的项目名（原文照抄，不改写）；',
+      '3) 无法解析的行跳过并在 warnings 中说明原因（≤30字）。',
+      '严格只输出 JSON：{"rows":[...],"warnings":["..."]}',
+    ].join('\n'),
+    profile: { current_level: 4, target_level: 5, track: 'project' },
+    history: [{ role: 'user', content: JSON.stringify({ kind, text: String(text).slice(0, 30000) }) }],
+    maxTokens: 3000, model: cfg('llm.model_fast'), purpose: 'import_extract',
+  });
+  return { rows: Array.isArray(out?.rows) ? out.rows.slice(0, 100) : [], warnings: (out?.warnings ?? []).map(String).slice(0, 10) };
+}
+
 // ================= R2.2 ITTO 工具实操题（出题 + 判分，快模型） =================
 const ITTO_DEPTH_HINT = {
   recognize: '「识别」：设计一个真实项目场景，让学生判断该场景中应使用什么工具/技术（考查工具识别）。',
@@ -454,6 +479,27 @@ function mockJSON(system, profile, history) {
   // R6.6 助手意图确定性分支（仅 mock：无密钥 e2e 可跑通「计划→确认→执行」全链路）
   if (system.includes('全局 AI 助手') && /登记风险/.test(last?.content ?? '')) {
     return { intent: 'risk.create', params: { title: String(last.content).split(/[：:]/)[1]?.trim().slice(0, 40) || '（mock）风险标题' } };
+  }
+  // R7.0 P2 周报 mock 分支（J6 回归锚：验收确定性验证 generateWeekly 全链路含 hints）
+  if (system.includes('周报撰写助手')) {
+    const ctx = JSON.parse([...history].reverse().find((m) => m.role === 'user')?.content ?? '{}');
+    return { markdown: `# （mock）${ctx.project?.name ?? '项目'} 周报\n\nEVM：SPI ${ctx.evm?.spi ?? '-'} / CPI ${ctx.evm?.cpi ?? '-'}；开放预警 ${ctx.openAlerts?.length ?? 0} 条。` };
+  }
+  // R7.0 P2 数据导入抽取确定性分支（仅 mock：无密钥环境可跑 preview→commit 全链路验收）
+  if (system.includes('数据导入抽取器')) {
+    let req = {};
+    try { req = JSON.parse(last?.content ?? '{}'); } catch { /* 保持空 req 走 risks 缺省 */ }
+    const kind = ['evm', 'risks', 'meetings', 'stakeholders'].includes(req.kind) ? req.kind : 'risks';
+    const lines = String(req.text ?? '').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/^[#|>*-]/.test(l));
+    const rows = lines.slice(0, 20).map((l) => {
+      const cells = l.split(/[\t,，;；]+/).map((c) => c.trim()).filter(Boolean);
+      const nums = (l.match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
+      if (kind === 'evm') return { project_name: cells[0] ?? '', pv: nums[0] ?? 0, ev: nums[1] ?? 0, ac: nums[2] ?? 0 };
+      if (kind === 'meetings') return { project_name: cells[0] ?? '', title: cells[1] ?? l.slice(0, 40), held_at: null, actions: [] };
+      if (kind === 'stakeholders') return { project_name: cells[0] ?? '', name: cells[1] ?? cells[0] ?? '', power: 5, interest: 5, current_engagement: '中立', desired_engagement: '支持' };
+      return { project_name: cells[0] ?? '', title: cells[1] ?? l.slice(0, 40), probability: 0.5, impact: 0.7 };
+    });
+    return { rows, warnings: [] };
   }
   // R3.5 验收确定性分支：ITTO 出题/判分（无密钥环境可跑 A6/B1 实操链路）
   if (system.includes('实操出题器')) {
