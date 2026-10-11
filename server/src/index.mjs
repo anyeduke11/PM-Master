@@ -6,6 +6,8 @@ import { streamChat, buildSystemPrompt, llmStats } from './agent.mjs';
 import { cfg, allSettings, setSettings, systemCore } from './settings.mjs';   // R7.0 P1 设置中心
 import { importKinds, importPreview, importCommit, importLogs } from './import-flow.mjs';   // R7.0 P2 数据流入
 import { toolUsage, assignToolTask } from './tools-usage.mjs';                              // R7.0 P2 工具频率
+import { patrolRun, patrolReports } from './patrol.mjs';                                    // R7.0 P3 每日巡检
+import { listPrompts, createPrompt, updatePrompt, deletePrompt } from './prompts.mjs';      // R7.0 P3 提示词库
 import { listScenarios, createSession, loadSession, handleMessage, control, closeSession, phasePlan } from './coach.mjs';
 
 const app = Fastify({ logger: { transport: undefined } });
@@ -333,6 +335,13 @@ app.post('/api/tools/usage/task', async (req) => {
   if (req.body?.tool_id == null) throw badRequest('tool_id 必填');
   return assignToolTask(req.body.tool_id);
 });
+
+// ---------- R7.0 P3 巡检简报 + 提示词库 ----------
+app.get('/api/patrol/reports', async (req) => patrolReports(req.query?.limit));
+app.get('/api/prompts', async (req) => listPrompts({ enabledOnly: req.query?.enabled === '1' }));
+app.post('/api/prompts', async (req) => createPrompt(req.body ?? {}));
+app.put('/api/prompts/:id', async (req) => updatePrompt(req.params.id, req.body ?? {}));
+app.delete('/api/prompts/:id', async (req) => deletePrompt(req.params.id));
 app.post('/api/growth/monthly-report', async () => {
   try { return { report: monthlyReport() }; }
   catch (e) { return { error: String(e.message) }; }
@@ -375,6 +384,11 @@ const JOBS = {
       const d = await deliverReport({ title: `PM-Master 成长月报 ${new Date().toISOString().slice(0, 10)}`, markdown });
       return { chars: markdown.length, closure_rate: stats.closure_rate, feishu: d.feishu };
     },
+  },
+  // R7.0 P3 每日巡检（08:00 错开 09:00 复习提醒；同日重跑 upsert 幂等，手动触发与 cron 撞车安全）
+  patrol: {
+    cron: '0 8 * * *', label: '每日 08:00 项目与成长巡检',
+    fn: () => patrolRun(),
   },
 };
 

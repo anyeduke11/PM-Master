@@ -27,6 +27,8 @@ const { db, getProfile, updateProfile } = await import('../src/db.mjs');
 const { cfg, allSettings, setSettings } = await import('../src/settings.mjs');   // R7.0 P1 设置中心
 const { importPreview, importCommit, importLogs } = await import('../src/import-flow.mjs');   // R7.0 P2 数据流入
 const { toolUsage, assignToolTask } = await import('../src/tools-usage.mjs');                 // R7.0 P2 工具频率
+const { patrolScan, patrolRun, patrolReports } = await import('../src/patrol.mjs');           // R7.0 P3 每日巡检
+const { listPrompts, createPrompt, updatePrompt, deletePrompt } = await import('../src/prompts.mjs');   // R7.0 P3 提示词库
 const { generateWeekly } = await import('../src/workbench.mjs');                              // R7.0 P2 周报回归
 const { review } = await import('../src/drill.mjs');
 const { seedCards } = await import('../src/seeds.mjs');
@@ -742,4 +744,49 @@ test('J6 周报生成回归：容差违规 hints 不再 ReferenceError（P2 修�
   assert.ok(out.markdown, 'mock 周报应生成');
   assert.ok(out.alerts.some((a) => a.dimension === 'cost'), '越界应产 alert');
   assert.ok(Array.isArray(out.hints), 'hints 应为数组（原 violations 未定义即在此行崩溃）');
+});
+
+// ============ J7-J8 R7.0 P3 每日巡检 + 提示词库 ============
+
+test('J7 每日巡检：扫描器排序/白名单路由 → 幂等 upsert → 通知投递 → mock digest', async () => {
+  const { findings, counts } = patrolScan();
+  // 测试库既有状态应至少扫出：J6 越界 alert（tolerance high）与 coach_idle（无 30 天内会话则出）
+  assert.ok(findings.length > 0, '种子+前序用例状态应产生发现');
+  const SEV = { high: 0, mid: 1, low: 2 };
+  for (let i = 1; i < findings.length; i++) assert.ok(SEV[findings[i - 1].severity] <= SEV[findings[i].severity], 'findings 按严重度排序');
+  for (const f of findings) {
+    assert.match(f.type, /^[a-z_]+$/, 'type 为蛇形标识');
+    if (f.action) assert.match(f.action.route, /^(coach|tab):[a-z_]+$/, `action 路由须在白名单：${f.action.route}`);
+  }
+  assert.equal(counts.high + counts.mid + counts.low, findings.length, '计数与清单一致');
+  // 执行：落简报 + 有发现必投通知（mock digest）
+  const r1 = await patrolRun();
+  assert.equal(r1.findings, findings.length);
+  assert.equal(r1.llm_ok, 1, 'mock provider 下 digest 应成功');
+  assert.equal(r1.notified, true);
+  const rep = patrolReports()[0];
+  assert.equal(rep.patrol_date, r1.date);
+  assert.match(rep.digest, /巡检/, 'digest 非空');
+  assert.ok(db.prepare(`SELECT COUNT(*) c FROM notifications WHERE title LIKE '%每日巡检%'`).get().c >= 1, '通知应投递');
+  // 同日幂等：重跑覆盖不增行
+  await patrolRun();
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM patrol_reports WHERE patrol_date=?').get(r1.date).c, 1, '同日 upsert 幂等');
+});
+
+test('J8 提示词库：CRUD 校验 + 启停过滤 + 排序 + 删除不存在 404', () => {
+  assert.throws(() => createPrompt({ title: '', content: 'x' }), /标题/, '空标题 400');
+  assert.throws(() => createPrompt({ title: 't', content: '  ' }), /内容/, '空内容 400');
+  const p1 = createPrompt({ title: '生成周报', content: '给当前项目生成周报，重点分析成本偏差根因', sort: 2 });
+  const p2 = createPrompt({ title: '登记风险', content: '登记风险：核心测试环境不稳定，概率 0.6 影响 0.7', sort: 1 });
+  assert.ok(p1.id > 0 && p2.id > 0);
+  const list = listPrompts();
+  assert.equal(list[0].id, p2.id, '按 sort 升序');
+  const off = updatePrompt(p1.id, { enabled: false });
+  assert.equal(off.enabled, 0);
+  assert.ok(!listPrompts({ enabledOnly: true }).some((p) => p.id === p1.id), '停用项不出现在 enabledOnly');
+  assert.equal(updatePrompt(p1.id, { title: '生成周报（改）' }).title, '生成周报（改）', '部分更新保留其余字段');
+  assert.throws(() => updatePrompt(p1.id, { content: '' }), /为空|标题/, '空内容更新拒绝');
+  assert.equal(deletePrompt(p2.id).ok, true);
+  assert.throws(() => deletePrompt(p2.id), /不存在/, '重复删除 404');
+  deletePrompt(p1.id);
 });

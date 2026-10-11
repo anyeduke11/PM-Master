@@ -113,7 +113,7 @@ export default function App() {
       {tab === 'drill' && <main style={{ overflow: 'hidden' }} className="page"><Drill /></main>}
       {tab === 'itto' && <main style={{ overflow: 'hidden' }} className="page"><Itto /></main>}
       {tab === 'growth' && <main style={{ overflow: 'auto' }} className="page"><Growth /></main>}
-      {tab === 'settings' && <main style={{ overflow: 'hidden' }} className="page"><Settings /></main>}
+      {tab === 'settings' && <main style={{ overflow: 'hidden' }} className="page"><Settings onNavigate={(t) => setTab(t)} onCoachStart={(sc) => { setAutoScenario(sc); setTab('coach'); }} /></main>}
       <Assistant
         pageContext={tab === 'work' && projCtx ? { tab, project_id: projCtx } : { tab }}
         onCoachStart={(sc) => { setAutoScenario(sc); setTab('coach'); }}

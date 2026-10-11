@@ -325,6 +325,26 @@ CREATE TABLE IF NOT EXISTS import_logs (
   status TEXT DEFAULT 'ok',                         -- ok | partial
   created_at TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- ===== R7.0 P3 每日巡检简报（同日 upsert 幂等；findings 判定纯代码，digest 为 LLM/模板摘要） =====
+CREATE TABLE IF NOT EXISTS patrol_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  patrol_date TEXT NOT NULL UNIQUE,                 -- YYYY-MM-DD（同日重跑覆盖）
+  findings TEXT NOT NULL,                           -- JSON 数组（type/severity/title/detail/action 白名单路由）
+  digest TEXT,                                      -- 简报正文（LLM 失败为代码模板）
+  llm_ok INTEGER DEFAULT 1,                         -- 0=降级模板（可观测）
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ===== R7.0 P3 提示词库：常用场景固化为快捷提示词（助手侧栏一键填入） =====
+CREATE TABLE IF NOT EXISTS prompts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,                              -- ≤30 字（按钮文案）
+  content TEXT NOT NULL,                            -- ≤2000 字（填入输入区的完整指令）
+  enabled INTEGER DEFAULT 1,                        -- 0=停用（不显示于助手）
+  sort INTEGER DEFAULT 0,                           -- 升序展示
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
 `);
 
 // 初始化一号用户档案（实例数据仅存库，不进代码）

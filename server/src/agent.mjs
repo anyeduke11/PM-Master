@@ -325,6 +325,22 @@ export async function importExtractChat({ kind, text }) {
   return { rows: Array.isArray(out?.rows) ? out.rows.slice(0, 100) : [], warnings: (out?.warnings ?? []).map(String).slice(0, 10) };
 }
 
+// ================= R7.0 P3 巡检简报：findings（代码已判定）→ 一段优先级叙述（LLM 只写摘要，不做判定） =================
+export async function patrolDigestChat({ date, counts, findings }) {
+  const out = await callJSON({
+    system: [
+      '你是 PM-Master 每日巡检简报撰写器。给定巡检日期、严重度计数与发现清单（判定已由代码完成，不得增删改发现），',
+      '写一段 100-200 字中文简报：先点最高优先级（高危优先，项目名照抄），再概括中低危分布，收尾给一句今日行动建议。',
+      '语气专业克制，不用感叹号，不编造清单外的数据。',
+      '严格只输出 JSON：{"digest":"简报正文"}',
+    ].join('\n'),
+    profile: { current_level: 4, target_level: 5, track: 'project' },
+    history: [{ role: 'user', content: JSON.stringify({ date, counts, findings }) }],
+    maxTokens: 1200, model: cfg('llm.model_fast'), purpose: 'patrol_digest',
+  });
+  return { digest: String(out?.digest ?? '') };
+}
+
 // ================= R2.2 ITTO 工具实操题（出题 + 判分，快模型） =================
 const ITTO_DEPTH_HINT = {
   recognize: '「识别」：设计一个真实项目场景，让学生判断该场景中应使用什么工具/技术（考查工具识别）。',
@@ -479,6 +495,13 @@ function mockJSON(system, profile, history) {
   // R6.6 助手意图确定性分支（仅 mock：无密钥 e2e 可跑通「计划→确认→执行」全链路）
   if (system.includes('全局 AI 助手') && /登记风险/.test(last?.content ?? '')) {
     return { intent: 'risk.create', params: { title: String(last.content).split(/[：:]/)[1]?.trim().slice(0, 40) || '（mock）风险标题' } };
+  }
+  // R7.0 P3 巡检简报 mock 分支（J7 回归锚：无密钥环境 digest 通道确定性）
+  if (system.includes('巡检简报撰写器')) {
+    let req = {};
+    try { req = JSON.parse(last?.content ?? '{}'); } catch { /* 保持空 */ }
+    const c = req.counts ?? {};
+    return { digest: `（mock）${req.date ?? ''} 巡检：高危 ${c.high ?? 0}、中 ${c.mid ?? 0}、低 ${c.low ?? 0}，优先处理高危项。` };
   }
   // R7.0 P2 周报 mock 分支（J6 回归锚：验收确定性验证 generateWeekly 全链路含 hints）
   if (system.includes('周报撰写助手')) {

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles } from '@tabler/icons-react';
-import { toast } from './ui.jsx';
+import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles, IconRadar, IconBolt, IconMessageCode, IconPlus, IconPencil, IconTrash } from '@tabler/icons-react';
+import { toast, Modal, Field } from './ui.jsx';
 
 // R7.0 P1 设置中心：A 系统状态 / B LLM 与模型（热切换）/ C 可观测性 / E 功能开关
 // R7.0 P2：K 数据流入（导入历史与说明）/ G 工具频率（使用排行/冷门推荐/训练任务）
+// R7.0 P3：J 巡检简报（调度状态+findings+动作路由）/ I 提示词库（常用场景固化）
 // 左锚点导航 + 右分区卡片；窄屏导航横滚、单列堆叠（CSS 断点处理）
 const SECTIONS = [
   ['sys', '系统状态', IconSettings],
@@ -12,11 +13,15 @@ const SECTIONS = [
   ['feature', '功能开关', IconToggleLeft],
   ['import', '数据流入', IconDownload],
   ['tools', '工具频率', IconTrendingUp],
+  ['patrol', '巡检简报', IconRadar],
+  ['prompts', '提示词库', IconMessageCode],
 ];
 
 const SRC_LABEL = { db: 'DB 覆盖', env: 'env', default: '默认' };
 
-export default function Settings() {
+const SEV_LABEL = { high: '高危', mid: '中危', low: '低危' };
+
+export default function Settings({ onNavigate, onCoachStart }) {
   const [sec, setSec] = useState('sys');
   const [system, setSystem] = useState(null);
   const [settings, setSettings] = useState(null);   // 全量白名单视图
@@ -27,6 +32,12 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [logs, setLogs] = useState(null);           // R7.0 P2 K 区：导入历史
   const [usage, setUsage] = useState(null);         // R7.0 P2 G 区：工具频率聚合
+  const [reports, setReports] = useState(null);     // R7.0 P3 J 区：巡检简报（[0]=最新）
+  const [sched, setSched] = useState(null);         // R7.0 P3 J 区：调度状态
+  const [runningPatrol, setRunningPatrol] = useState(false);
+  const [prompts, setPrompts] = useState(null);     // R7.0 P3 I 区：提示词库
+  const [pEdit, setPEdit] = useState(null);         // 编辑中提示词 {id?, title, content, sort}（null=关）
+  const [pDel, setPDel] = useState(null);           // 待删除确认的提示词 id
   const refs = useRef({});
 
   async function j(url, opts) {
@@ -36,11 +47,12 @@ export default function Settings() {
   }
   async function loadAll() {
     try {
-      const [sys, set, st, lg, us] = await Promise.all([
+      const [sys, set, st, lg, us, rp, sc, pm] = await Promise.all([
         j('/api/settings/system'), j('/api/settings'), j('/api/llm/stats'),
-        j('/api/import/logs'), j('/api/tools/usage'),
+        j('/api/import/logs'), j('/api/tools/usage'), j('/api/patrol/reports'), j('/api/scheduler'), j('/api/prompts'),
       ]);
-      setSystem(sys); setSettings(set); setStats(st); setLogs(lg); setUsage(us); setDraft({});
+      setSystem(sys); setSettings(set); setStats(st); setLogs(lg); setUsage(us);
+      setReports(rp); setSched(sc); setPrompts(pm); setDraft({});
     } catch (e) { toast(`设置加载失败：${e.message}`, 'err'); }
   }
   useEffect(() => { loadAll(); }, []);
@@ -92,6 +104,53 @@ export default function Settings() {
     } catch (e) { toast(`生成失败：${e.message}`, 'err'); }
   }
 
+  // J 区：手动触发巡检（真实 LLM 较慢，busy 态）+ finding 动作路由（白名单：coach:xxx | tab:xxx）
+  async function runPatrol() {
+    setRunningPatrol(true);
+    try {
+      const r = await j('/api/scheduler/run/patrol', { method: 'POST' });
+      toast(`巡检完成：${r.result.findings} 项发现${r.result.notified ? '，已投通知' : '（无发现，静默）'}`, 'ok', 4200);
+      setReports(await j('/api/patrol/reports'));
+      setSched(await j('/api/scheduler'));
+    } catch (e) { toast(`巡检失败：${e.message}`, 'err'); }
+    setRunningPatrol(false);
+  }
+  function fireRoute(route) {
+    const [kind, arg] = String(route).split(':');
+    if (kind === 'coach') onCoachStart?.(arg);
+    else if (kind === 'tab') onNavigate?.(arg);
+  }
+
+  // I 区：提示词保存（新建/编辑）与删除；成功后广播 pm-prompts（助手快捷按钮即时刷新）
+  const broadcastPrompts = () => window.dispatchEvent(new Event('pm-prompts'));
+  async function savePrompt() {
+    if (!pEdit?.title?.trim() || !pEdit?.content?.trim()) return toast('标题与内容必填', 'warn');
+    try {
+      if (pEdit.id) await j(`/api/prompts/${pEdit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pEdit) });
+      else await j('/api/prompts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pEdit) });
+      setPrompts(await j('/api/prompts'));
+      setPEdit(null);
+      broadcastPrompts();
+      toast('提示词已保存', 'ok');
+    } catch (e) { toast(`保存失败：${e.message}`, 'err'); }
+  }
+  async function removePrompt(id) {
+    try {
+      await j(`/api/prompts/${id}`, { method: 'DELETE' });
+      setPrompts(await j('/api/prompts'));
+      setPDel(null);
+      broadcastPrompts();
+      toast('已删除', 'ok');
+    } catch (e) { toast(`删除失败：${e.message}`, 'err'); }
+  }
+  async function togglePrompt(p) {
+    try {
+      await j(`/api/prompts/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !p.enabled }) });
+      setPrompts(await j('/api/prompts'));
+      broadcastPrompts();
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
   // —— 单行渲染器：按 type 出控件；「恢复」按钮=写 null 删 KV 行 ——
   function row(s) {
     const v = eff(s);
@@ -135,7 +194,7 @@ export default function Settings() {
           </button>
         ))}
         <div style={{ marginTop: 8, padding: '8px 6px 2px', borderTop: '1px dashed var(--line)', fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.7 }}>
-          P3 起陆续开放：每日巡检简报 / 提示词库；P4：蒸馏画像 / 记忆与上下文
+          P4 规划：蒸馏画像 / 记忆与上下文 / Skill 注册表
         </div>
       </nav>
 
@@ -351,7 +410,95 @@ export default function Settings() {
             </>
           )}
         </div>
+
+        {/* J 巡检简报（R7.0 P3）：调度状态 + 最新 findings（动作路由）+ 历史 */}
+        <div className="card" ref={(el) => (refs.current.patrol = el)}>
+          <h3>每日巡检简报
+            <button className="mini pri" style={{ marginLeft: 'auto' }} disabled={runningPatrol} onClick={runPatrol}>
+              <IconBolt size={12} stroke={2} /> {runningPatrol ? '巡检中（LLM 摘要）…' : '立即巡检'}
+            </button>
+          </h3>
+          {sched?.patrol && (
+            <div className="set-row" style={{ marginBottom: 8 }}>
+              <span className="lab">定时调度<small>{sched.patrol.cron}（{sched.patrol.label}）</small></span>
+              <span className="mono" style={{ fontSize: 11, color: 'var(--ink3)' }}>上次：{sched.patrol.last_run ? sched.patrol.last_run.slice(5, 16) : '未执行'}</span>
+              {sched.patrol.last_result === 'ok'
+                ? <span className="badge cnt-ok">✓ 正常</span>
+                : sched.patrol.last_result ? <span className="badge cnt-err">✗ {String(sched.patrol.last_error ?? '失败').slice(0, 40)}</span> : null}
+            </div>
+          )}
+          {!reports && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+          {reports && reports.length === 0 && <div className="empty">尚无巡检记录——点击「立即巡检」或等待每日 08:00 定时执行</div>}
+          {reports?.length > 0 && (
+            <>
+              <div className="notice">
+                <b>{reports[0].patrol_date} 简报</b>
+                {!reports[0].llm_ok && <span className="src-tag env" style={{ marginLeft: 6 }}>降级模板</span>}
+                <div style={{ marginTop: 3 }}>{reports[0].digest}</div>
+              </div>
+              {reports[0].findings.map((f, i) => (
+                <div key={i} className={`pt-item s-${f.severity}`}>
+                  <span className={`sev-tag s-${f.severity}`}>{SEV_LABEL[f.severity] ?? f.severity}</span>
+                  <span className="body"><b>{f.title}</b><small>{f.detail}</small></span>
+                  {f.action && <button className="mini" onClick={() => fireRoute(f.action.route)}>{f.action.label}</button>}
+                </div>
+              ))}
+              {reports.length > 1 && (
+                <details className="itto-ref" style={{ marginTop: 6 }}>
+                  <summary>更早简报（{reports.length - 1} 期）</summary>
+                  {reports.slice(1).map((r) => (
+                    <div key={r.id} style={{ marginBottom: 6 }}>
+                      <b style={{ fontSize: 11.5 }}>{r.patrol_date}</b>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink3)', lineHeight: 1.6 }}>{r.digest}</div>
+                    </div>
+                  ))}
+                </details>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* I 提示词库（R7.0 P3）：常用场景固化 → 助手侧栏快捷按钮 */}
+        <div className="card" ref={(el) => (refs.current.prompts = el)}>
+          <h3>提示词库
+            <button className="mini pri" style={{ marginLeft: 'auto' }} onClick={() => setPEdit({ title: '', content: '', sort: (prompts?.length ?? 0) + 1 })}>
+              <IconPlus size={12} stroke={2} /> 新建
+            </button>
+          </h3>
+          {!prompts && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+          {prompts && prompts.length === 0 && <div className="empty">暂无提示词——把高频指令（如「给当前项目生成周报并分析成本偏差」）固化为一键按钮</div>}
+          {prompts?.map((p) => (
+            <div key={p.id} className="set-row">
+              <span className="lab">{p.title}<small>{p.content.length > 60 ? `${p.content.slice(0, 60)}…` : p.content}</small></span>
+              <button type="button" className={`switch ${p.enabled ? 'on' : ''}`} role="switch" aria-checked={Boolean(p.enabled)} aria-label={`启用 ${p.title}`}
+                onClick={() => togglePrompt(p)} />
+              <button className="mini" title="编辑" onClick={() => setPEdit({ ...p })}><IconPencil size={12} stroke={1.8} /></button>
+              {pDel === p.id
+                ? <><button className="mini danger" onClick={() => removePrompt(p.id)}>确认删除</button><button className="mini" onClick={() => setPDel(null)}>取消</button></>
+                : <button className="mini" title="删除" onClick={() => setPDel(p.id)}><IconTrash size={12} stroke={1.8} /></button>}
+            </div>
+          ))}
+          <small style={{ color: 'var(--ink3)' }}>启用项显示在 AI 助手输入框上方（点击填入，可再编辑后发送）；按 sort 升序排列</small>
+        </div>
       </div>
+
+      {/* I 区：新建/编辑提示词 Modal */}
+      {pEdit && (
+        <Modal title={pEdit.id ? '编辑提示词' : '新建提示词'} onClose={() => setPEdit(null)} width={520}
+          footer={<><button onClick={() => setPEdit(null)}>取消</button><button className="pri" onClick={savePrompt}>保存</button></>}>
+          <Field label="标题（≤30 字，按钮文案）">
+            <input value={pEdit.title} maxLength={30} autoFocus onChange={(e) => setPEdit((d) => ({ ...d, title: e.target.value }))} placeholder="如：周报成本分析" />
+          </Field>
+          <Field label="提示词内容（≤2000 字，点击按钮填入输入区）">
+            <textarea style={{ width: '100%', minHeight: 100 }} maxLength={2000} value={pEdit.content}
+              onChange={(e) => setPEdit((d) => ({ ...d, content: e.target.value }))}
+              placeholder="给当前项目生成周报，重点分析成本偏差根因与纠偏方案" />
+          </Field>
+          <Field label="排序（小者靠前）">
+            <input type="number" style={{ width: 90 }} value={pEdit.sort ?? 0} onChange={(e) => setPEdit((d) => ({ ...d, sort: Number(e.target.value) }))} />
+          </Field>
+        </Modal>
+      )}
     </div>
   );
 }

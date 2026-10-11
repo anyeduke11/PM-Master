@@ -446,6 +446,22 @@
     .switch:hover { border-color:var(--accent); background:var(--surface-2); }
     .switch.on { background:var(--accent-grad); border-color:transparent; }
     .switch.on::after { transform:translateX(16px); background:#fff; }
+    /* R7.0 P3 巡检发现条目（severity 左条 + 动作按钮） */
+    .pt-item { display:flex; align-items:flex-start; gap:9px; border:1px solid var(--line); border-left:3px solid var(--ink3); border-radius:9px; padding:8px 11px; margin-bottom:6px; background:var(--surface); font-size:12.5px; line-height:1.6; }
+    .pt-item.s-high { border-left-color:var(--cin); }
+    .pt-item.s-mid { border-left-color:var(--warn); }
+    .pt-item.s-low { border-left-color:var(--accent); }
+    .pt-item .body { flex:1; min-width:0; }
+    .pt-item .body small { display:block; color:var(--ink3); font-size:11px; margin-top:1px; }
+    .sev-tag { flex:none; font-size:9.5px; font-weight:700; border-radius:5px; padding:1px 6px; margin-top:2px; letter-spacing:1px; }
+    .sev-tag.s-high { background:var(--danger-soft); color:var(--cin); }
+    .sev-tag.s-mid { background:var(--warn-soft); color:var(--warn); }
+    .sev-tag.s-low { background:var(--accent-soft); color:var(--accent-2); }
+    /* R7.0 P3 助手快捷提示词按钮行（横向滚动，输入框上方） */
+    .qbtns { display:flex; gap:5px; padding:7px 10px 0; overflow-x:auto; scrollbar-width:none; flex:none; }
+    .qbtns::-webkit-scrollbar { display:none; }
+    .qbtns button { flex:none; font-size:11px; padding:3px 10px; border-radius:999px; border:1px solid var(--hair); background:var(--surface-2); color:var(--accent-2); white-space:nowrap; }
+    .qbtns button:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
 
     /* ---------- 动效关键帧 ---------- */
     @keyframes pageIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }

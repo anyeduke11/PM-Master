@@ -17,6 +17,14 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   const boxRef = useRef(null);
   const focusPending = useRef(false);
   const suggestOff = useRef(false);   // 会话内不再拉取建议（mount 读档案 / 用户关闭后）
+  const [quickPrompts, setQuickPrompts] = useState([]);   // R7.0 P3 I1：启用的快捷提示词（点击填入输入区）
+
+  useEffect(() => {
+    const load = () => fetch('/api/prompts?enabled=1').then((r) => r.ok ? r.json() : []).then((ps) => setQuickPrompts(Array.isArray(ps) ? ps : [])).catch(() => {});
+    load();
+    window.addEventListener('pm-prompts', load);   // 设置页保存后即时刷新
+    return () => window.removeEventListener('pm-prompts', load);
+  }, []);
 
   // body 右侧留白容纳 fixed 侧栏（规则见 index.html：.assistant-live / .assistant-collapsed）
   useEffect(() => {
@@ -325,6 +333,14 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
                 <button className="pri" disabled={busy || clearText.trim() !== '清空'} onClick={doClear}>确认清空</button>
                 <button disabled={busy} onClick={() => { setClearAsk(false); setClearText(''); }}>取消</button>
               </div>
+            </div>
+          )}
+          {/* R7.0 P3 I1：快捷提示词（设置·提示词库启用项；点击填入可再编辑） */}
+          {quickPrompts.length > 0 && (
+            <div className="qbtns">
+              {quickPrompts.map((p) => (
+                <button key={p.id} title={p.content} onClick={() => { setInput(p.content); inputRef.current?.focus(); }}>{p.title}</button>
+              ))}
             </div>
           )}
           <div className="asst-bar">
