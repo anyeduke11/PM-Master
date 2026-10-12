@@ -19,9 +19,9 @@ const COLS = {
   stakeholders: [['name', '姓名', 't'], ['power', '权力', 'n'], ['interest', '利益', 'n']],
 };
 
-export default function Import({ onClose, onDone }) {
+export default function Import({ onClose, onDone, initialText = '' }) {
   const [kind, setKind] = useState(null);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);   // R7.0 P5：飞书读入等通道预填（调用方以 key 重挂载刷新）
   const [rows, setRows] = useState(null);      // null=未抽取；[] 起为预览态
   const [checked, setChecked] = useState({});  // {i: true}
   const [busy, setBusy] = useState(false);

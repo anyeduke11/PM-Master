@@ -847,3 +847,61 @@ test('J11 buildSystemPrompt 注入：画像+记忆+persona 设定；memory_on=0 
   updateProfile({ summary: null });
   setSettings({ 'persona.address': null, 'persona.style': null, 'persona.strictness': null, 'persona.memory_on': null });
 });
+
+// ============ J12-J14 R7.0 P5 技能注册表 / MCP 壳 / 飞书读入 ============
+
+test('J12 技能注册表：登记完整 + kill-switch 生效于 callJSON 门 + purpose 漂移检测', async () => {
+  const { REGISTRY, skillEnabled, setSkillEnabled, listSkills } = await import('../src/skills.mjs');
+  const { patrolDigestChat } = await import('../src/agent.mjs');
+  // 注册表自洽：id 唯一、字段齐、tier 合法
+  const ids = REGISTRY.map((r) => r.id);
+  assert.equal(new Set(ids).size, ids.length, 'purpose id 不得重复');
+  assert.ok(REGISTRY.every((r) => r.label && r.group && r.desc && ['fast', 'strong'].includes(r.tier)), '字段完整');
+  // 漂移检测：llm_calls 出现过的 purpose 必须已登记（新增通道漏登记即红）
+  const used = db.prepare('SELECT DISTINCT purpose FROM llm_calls').all().map((r) => r.purpose);
+  for (const p of used) assert.ok(ids.includes(p) || p === 'unknown', `未登记的 purpose 出现在观测表：${p}`);
+  // kill-switch：默认开 → 停用后调用抛错（不进模型）→ 恢复
+  assert.equal(skillEnabled('patrol_digest'), true, '默认启用');
+  assert.equal(listSkills().find((s) => s.id === 'patrol_digest').enabled, true);
+  setSkillEnabled('patrol_digest', false);
+  assert.equal(skillEnabled('patrol_digest'), false);
+  await assert.rejects(() => patrolDigestChat({ date: '2026-01-01', counts: { high: 0 }, findings: [] }), /停用/, '停用能力调用被门拦截');
+  setSkillEnabled('patrol_digest', null);   // 清行恢复默认
+  assert.equal(skillEnabled('patrol_digest'), true, 'null 清除覆盖回默认启用');
+  assert.throws(() => setSkillEnabled('nope', false), /未登记/);
+});
+
+test('J13 MCP 管理壳：CRUD 校验 + which 探测（不执行目标命令）', async () => {
+  const { createMcp, updateMcp, deleteMcp, checkMcp, listMcp } = await import('../src/mcp.mjs');
+  assert.throws(() => createMcp({ name: '', command: 'x' }), /name/, '空名拒绝');
+  assert.throws(() => createMcp({ name: 'a', command: ' ' }), /command/, '空命令拒绝');
+  assert.throws(() => createMcp({ name: 'n'.repeat(41), command: 'x' }), /超长/);
+  const { id } = createMcp({ name: 'J13 node 壳', command: 'node', args: '--stdio', note: '验收桩' });
+  const r1 = checkMcp(id);
+  assert.equal(r1.status, 'available', 'node 在 PATH（which 探测，未执行 node 本身）');
+  assert.match(r1.path, /node/, '返回解析路径');
+  const { id: id2 } = createMcp({ name: 'J13 假命令', command: 'pm-master-not-exist-xyz' });
+  assert.equal(checkMcp(id2).status, 'not_found');
+  assert.equal(listMcp().some((m) => m.id === id2 && m.last_status === 'not_found'), true, '状态落库');
+  const upd = updateMcp(id, { enabled: false, note: '改过' });
+  assert.equal(upd.enabled, 0);
+  assert.equal(upd.note, '改过');
+  assert.throws(() => updateMcp(id, { enabled: 'yes' }), /布尔/, '非布尔拒绝');
+  assert.throws(() => updateMcp(99999, { note: 'x' }), /不存在/);
+  deleteMcp(id); deleteMcp(id2);
+  assert.throws(() => deleteMcp(id), /不存在/, '重复删除 404');
+});
+
+test('J14 飞书读入：引用解析纯函数 + 凭据/入参两分支错误（不打网络）', async () => {
+  const { parseDocRef, readDoc, feishuConfigured } = await import('../src/feishu.mjs');
+  assert.deepEqual(parseDocRef('https://xx.feishu.cn/docx/AbC123xyz'), { kind: 'docx', token: 'AbC123xyz' });
+  assert.deepEqual(parseDocRef('https://xx.feishu.cn/wiki/WkNode1token'), { kind: 'wiki', token: 'WkNode1token' });
+  assert.deepEqual(parseDocRef('BareDocToken1234'), { kind: 'docx', token: 'BareDocToken1234' });
+  assert.equal(parseDocRef('不是链接'), null);
+  assert.equal(parseDocRef(''), null);
+  if (feishuConfigured()) {
+    await assert.rejects(() => readDoc('垃圾引用'), /无法解析/, '有凭据：坏引用 BAD_REF（解析在网络之前）');
+  } else {
+    await assert.rejects(() => readDoc('https://x/docx/TOKEN123456'), /飞书未配置/, '无凭据：明确降级提示');
+  }
+});

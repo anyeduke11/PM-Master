@@ -5,7 +5,7 @@ import Import from './Import.jsx';
 
 // P2 项目工作台：项目列表 + 四件套（周报/风险/干系人/会议）+ 容差预警黄金闭环
 // R2.4：W1.3 智能关联提示卡（新风险/超容差时工具提示）+ W3.3 组合视角 tab
-export default function Workbench({ goCoach, onContext }) {
+export default function Workbench({ goCoach, onContext, importPrefill }) {
   const [projects, setProjects] = useState([]);
   const [pid, setPid] = useState(null);
   const [tab, setTab] = useState('weekly');
@@ -26,8 +26,11 @@ export default function Workbench({ goCoach, onContext }) {
   const [newName, setNewName] = useState('');
   const [soOut, setSoOut] = useState(null);           // 二阶推演结果 Modal
   const [showImport, setShowImport] = useState(false); // R7.0 P2 数据流入向导
+  const [importDraft, setImportDraft] = useState(null); // R7.0 P5 飞书读入预填草稿 {seq, text}
 
   useEffect(() => { loadProjects(); loadAlerts(); }, []);
+  // R7.0 P5：App 事件桥传来的飞书草稿 → 自动开导向并预填（seq 变化即重挂载）
+  useEffect(() => { if (importPrefill) { setImportDraft(importPrefill); setShowImport(true); } }, [importPrefill]);
   useEffect(() => { if (pid) loadAll(pid); }, [pid]);
   useEffect(() => { if (pid) onContext?.({ project_id: pid }); }, [pid]);   // 上报助手页面上下文
   useEffect(() => { if (tab === 'combo' && !portfolio) loadPortfolio(); }, [tab]);
@@ -443,8 +446,9 @@ export default function Workbench({ goCoach, onContext }) {
       )}
 
       {/* R7.0 P2 数据流入向导；EVM 导入命中当前项目 → 预填周报输入框（黄金闭环入口） */}
+      {/* R7.0 P5：飞书读入经 pm-import-prefill 事件预填 text；seq 作 key 强制重挂载刷新草稿 */}
       {showImport && (
-        <Import onClose={() => setShowImport(false)} onDone={({ kind, rows, result }) => {
+        <Import key={importDraft?.seq ?? 0} initialText={importDraft?.text ?? ''} onClose={() => { setShowImport(false); setImportDraft(null); }} onDone={({ kind, rows, result }) => {
           loadProjects();
           if (pid) loadAll(pid);
           if (kind === 'evm') {

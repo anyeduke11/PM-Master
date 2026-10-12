@@ -81,3 +81,61 @@ export async function exportDoc({ title, markdown }) {
 
   return { document_id: docId, url: `https://feishu.cn/docx/${docId}`, blocks: blocks.length };
 }
+
+// ================= R7.0 P5 飞书读入（数据流入管道） =================
+// 解析引用：支持 /docx/<token>、/wiki/<token>、裸 token（wiki 需 get_node 换 obj_token）
+export function parseDocRef(s) {
+  const str = String(s ?? '').trim();
+  let m = /\/(docx|wiki)\/([A-Za-z0-9_-]+)/.exec(str);
+  if (m) return { kind: m[1], token: m[2] };
+  if (/^[A-Za-z0-9_-]{10,}$/.test(str)) return { kind: 'docx', token: str };
+  return null;
+}
+
+async function apiGet(path, token) {
+  const res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  const j = await res.json();
+  if (j.code !== 0) throw new Error(`飞书 API ${path.split('?')[0]}: ${j.msg}`);
+  return j.data;
+}
+
+// docx blocks → Markdown（demo 级保真：标题/正文/列表/表格行展平；读入目的是喂导入向导，非排版还原）
+function blocks2md(items) {
+  const textOf = (b) => (b.elements ?? []).map((e) => e.text_run?.content ?? '').join('');
+  return items.map((b) => {
+    const t = b.block_type;
+    if (t >= 3 && t <= 11) return `${'#'.repeat(t - 2)} ${b[`heading${t - 2}`]?.elements?.map((e) => e.text_run?.content ?? '').join('') ?? ''}`;
+    if (t === 12) return `- ${textOf(b.bullet ?? b)}`;
+    if (t === 13) return `1. ${textOf(b.ordered ?? b)}`;
+    return textOf(b.text ?? b);
+  }).join('\n');
+}
+
+// 读飞书文档为 Markdown（凭据门控；wiki 链接自动换 obj_token 且仅支持 docx 类节点）
+export async function readDoc(ref) {
+  if (!feishuConfigured()) {
+    const err = new Error('飞书未配置（server/.env 设置 FEISHU_APP_ID/FEISHU_APP_SECRET，应用需开通 docx 读权限）');
+    err.code = 'NOT_CONFIGURED';
+    throw err;
+  }
+  const parsed = parseDocRef(ref);
+  if (!parsed) throw Object.assign(new Error('无法解析文档引用（支持 /docx/、/wiki/ 链接或裸 token）'), { code: 'BAD_REF' });
+  const token = await getToken();
+  let docId = parsed.token;
+  if (parsed.kind === 'wiki') {
+    const node = await apiGet(`/wiki/v2/spaces/get_node?token=${parsed.token}`, token);
+    if (node.obj_type !== 'docx') throw new Error(`wiki 节点类型 ${node.obj_type} 暂不支持读入（当前仅 docx）`);
+    docId = node.obj_token;
+  }
+  const doc = await apiGet(`/docx/v1/documents/${docId}`, token);
+  const items = [];
+  let pageToken = '';
+  for (let guard = 0; guard < 40; guard++) {   // 分页保护：≤40 页 × 500 块
+    const qs = `page_size=500${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+    const data = await apiGet(`/docx/v1/documents/${docId}/allBlocks?${qs}`, token);
+    items.push(...(data.items ?? []));
+    if (!data.has_more) break;
+    pageToken = data.page_token ?? '';
+  }
+  return { document_id: docId, title: doc.document?.title ?? '', markdown: blocks2md(items), blocks: items.length };
+}

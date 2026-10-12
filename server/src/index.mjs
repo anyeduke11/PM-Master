@@ -351,6 +351,19 @@ app.put('/api/memories/:id', async (req) => updateMemory(req.params.id, req.body
 app.delete('/api/memories/:id', async (req) => deleteMemory(req.params.id));
 app.post('/api/profile/distill', async () => distillProfile());
 app.get('/api/context/preview', async () => contextPreview());
+
+// ---------- R7.0 P5 技能注册表 + MCP 壳 + 飞书读入（L/M 区） ----------
+import { listSkills, setSkillEnabled } from './skills.mjs';
+import { listMcp, createMcp, updateMcp, deleteMcp, checkMcp } from './mcp.mjs';
+import { readDoc } from './feishu.mjs';
+app.get('/api/skills', async () => listSkills());
+app.put('/api/skills/:id', async (req) => setSkillEnabled(req.params.id, req.body?.enabled));
+app.get('/api/mcp', async () => listMcp());
+app.post('/api/mcp', async (req) => createMcp(req.body ?? {}));
+app.put('/api/mcp/:id', async (req) => updateMcp(req.params.id, req.body ?? {}));
+app.delete('/api/mcp/:id', async (req) => deleteMcp(req.params.id));
+app.post('/api/mcp/:id/check', async (req) => checkMcp(req.params.id));
+app.post('/api/feishu/read', async (req) => readDoc(req.body?.ref));
 app.post('/api/growth/monthly-report', async () => {
   try { return { report: monthlyReport() }; }
   catch (e) { return { error: String(e.message) }; }

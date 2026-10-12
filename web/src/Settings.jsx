@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles, IconRadar, IconBolt, IconMessageCode, IconPlus, IconPencil, IconTrash, IconUserCircle, IconBrain, IconPin, IconRefresh } from '@tabler/icons-react';
+import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles, IconRadar, IconBolt, IconMessageCode, IconPlus, IconPencil, IconTrash, IconUserCircle, IconBrain, IconPin, IconRefresh, IconPuzzle, IconPlug, IconCloudUpload, IconCopy } from '@tabler/icons-react';
 import { toast, Modal, Field } from './ui.jsx';
 
 // R7.0 P1 设置中心：A 系统状态 / B LLM 与模型（热切换）/ C 可观测性 / E 功能开关
 // R7.0 P2：K 数据流入（导入历史与说明）/ G 工具频率（使用排行/冷门推荐/训练任务）
 // R7.0 P3：J 巡检简报（调度状态+findings+动作路由）/ I 提示词库（常用场景固化）
 // R7.0 P4：F 档案与蒸馏（persona + 画像蒸馏）/ H 记忆与上下文（条目 CRUD + 注入预览）
+// R7.0 P5：L 技能注册表（能力清单+kill-switch+统计）/ M 集成（MCP 管理壳 + 飞书文档读入）
 // 左锚点导航 + 右分区卡片；窄屏导航横滚、单列堆叠（CSS 断点处理）
 const SECTIONS = [
   ['sys', '系统状态', IconSettings],
@@ -14,6 +15,8 @@ const SECTIONS = [
   ['feature', '功能开关', IconToggleLeft],
   ['persona', '档案与蒸馏', IconUserCircle],
   ['memory', '记忆与上下文', IconBrain],
+  ['skills', '技能注册表', IconPuzzle],
+  ['mcp', '集成与 MCP', IconPlug],
   ['import', '数据流入', IconDownload],
   ['tools', '工具频率', IconTrendingUp],
   ['patrol', '巡检简报', IconRadar],
@@ -47,6 +50,15 @@ export default function Settings({ onNavigate, onCoachStart }) {
   const [memDel, setMemDel] = useState(null);       // 待删除确认记忆 id
   const [summaryEdit, setSummaryEdit] = useState(null);  // F 区：画像编辑文本（null=非编辑态）
   const [distilling, setDistilling] = useState(false);
+  const [skills, setSkills] = useState(null);       // R7.0 P5 L 区：技能注册表
+  const [mcp, setMcp] = useState(null);             // R7.0 P5 M 区：MCP 壳
+  const [mcpEdit, setMcpEdit] = useState(null);     // {id?, name, command, args, note}
+  const [mcpDel, setMcpDel] = useState(null);
+  const [mcpBusy, setMcpBusy] = useState(null);     // 正在探测的 id
+  const [fsStatus, setFsStatus] = useState(null);   // 飞书凭据状态
+  const [fsRef, setFsRef] = useState('');           // 飞书文档链接
+  const [fsDoc, setFsDoc] = useState(null);         // 读入结果 {title, markdown}
+  const [fsBusy, setFsBusy] = useState(false);
   const refs = useRef({});
 
   async function j(url, opts) {
@@ -56,13 +68,14 @@ export default function Settings({ onNavigate, onCoachStart }) {
   }
   async function loadAll() {
     try {
-      const [sys, set, st, lg, us, rp, sc, pm, mm, cx] = await Promise.all([
+      const [sys, set, st, lg, us, rp, sc, pm, mm, cx, sk, mc, fs] = await Promise.all([
         j('/api/settings/system'), j('/api/settings'), j('/api/llm/stats'),
         j('/api/import/logs'), j('/api/tools/usage'), j('/api/patrol/reports'), j('/api/scheduler'), j('/api/prompts'),
-        j('/api/memories'), j('/api/context/preview'),
+        j('/api/memories'), j('/api/context/preview'), j('/api/skills'), j('/api/mcp'), j('/api/feishu/status'),
       ]);
       setSystem(sys); setSettings(set); setStats(st); setLogs(lg); setUsage(us);
       setReports(rp); setSched(sc); setPrompts(pm); setMemories(mm); setCtx(cx); setDraft({});
+      setSkills(sk); setMcp(mc); setFsStatus(fs);
     } catch (e) { toast(`设置加载失败：${e.message}`, 'err'); }
   }
   useEffect(() => { loadAll(); }, []);
@@ -208,6 +221,56 @@ export default function Settings({ onNavigate, onCoachStart }) {
       setMemDel(null);
       toast('已删除', 'ok');
     } catch (e) { toast(`删除失败：${e.message}`, 'err'); }
+  }
+
+  // —— R7.0 P5 L 区：技能注册表 kill-switch ——
+  async function toggleSkill(s) {
+    try {
+      await j(`/api/skills/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !s.enabled }) });
+      setSkills(await j('/api/skills'));
+      toast(s.enabled ? `已停用「${s.label}」——相关 AI 功能调用将明确报错` : `已启用「${s.label}」`, s.enabled ? 'warn' : 'ok', 4200);
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
+  // —— R7.0 P5 M 区：MCP 壳 + 飞书读入 ——
+  async function saveMcp() {
+    try {
+      const body = JSON.stringify(mcpEdit);
+      if (mcpEdit.id) await j(`/api/mcp/${mcpEdit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+      else await j('/api/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      setMcp(await j('/api/mcp'));
+      setMcpEdit(null);
+      toast('已保存（登记壳：不参与运行时调用）', 'ok', 4200);
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  async function runCheck(m) {
+    setMcpBusy(m.id);
+    try {
+      const r = await j(`/api/mcp/${m.id}/check`, { method: 'POST' });
+      setMcp(await j('/api/mcp'));
+      toast(r.message, r.status === 'available' ? 'ok' : 'warn', 5200);
+    } catch (e) { toast(e.message, 'err'); }
+    setMcpBusy(null);
+  }
+  async function removeMcp(id) {
+    try {
+      await j(`/api/mcp/${id}`, { method: 'DELETE' });
+      setMcp(await j('/api/mcp'));
+      setMcpDel(null);
+    } catch (e) { toast(`删除失败：${e.message}`, 'err'); }
+  }
+  async function readFeishu() {
+    setFsBusy(true);
+    try {
+      const d = await j('/api/feishu/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: fsRef }) });
+      setFsDoc(d);
+      toast(`读入成功：《${d.title || '无标题'}》${d.blocks} 块`, 'ok');
+    } catch (e) { toast(`读入失败：${e.message}`, 'err', 6000); }
+    setFsBusy(false);
+  }
+  function sendToImport() {
+    window.dispatchEvent(new CustomEvent('pm-import-prefill', { detail: { text: fsDoc.markdown, title: fsDoc.title } }));
+    toast('已发送到导入向导（在工作台选择类型后 AI 抽取）', 'ok', 5200);
   }
 
   // —— 单行渲染器：按 type 出控件；「恢复」按钮=写 null 删 KV 行 ——
@@ -469,7 +532,76 @@ export default function Settings({ onNavigate, onCoachStart }) {
           )}
         </div>
 
-        {/* K 数据流入（R7.0 P2）：导入历史与说明（导入操作入口在工作台） */}
+        {/* L 技能注册表（R7.0 P5）：LLM 能力清单 + kill-switch + 全时段调用统计 */}
+         <div className="card" ref={(el) => (refs.current.skills = el)}>
+           <h3>技能注册表</h3>
+           <div className="notice">22 项 AI 能力（purpose 固定枚举，新增通道由验收用例 J12 漂移检测兜底）。<b>停用= kill switch</b>：相关功能调用将明确报错并计入观测，默认全部启用。</div>
+           {!skills && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /><div className="skeleton" /></div>}
+           {skills && Object.entries(skills.reduce((g, s) => ((g[s.group] ??= []).push(s), g), {})).map(([grp, items]) => (
+             <div key={grp} style={{ marginBottom: 8 }}>
+               <b style={{ fontSize: 11, color: 'var(--ink3)', letterSpacing: 1 }}>{grp}</b>
+               {items.map((s) => (
+                 <div key={s.id} className="set-row" style={s.enabled ? undefined : { opacity: 0.55 }}>
+                   <span className="lab">{s.label}
+                     <small>{s.id} · {s.tier === 'fast' ? '快模型' : '强模型'} · {s.desc}</small>
+                   </span>
+                   <small style={{ color: 'var(--ink3)', whiteSpace: 'nowrap', fontSize: 11 }}>
+                     {s.calls ? `${s.calls} 次 · ${Math.round((s.ok_calls / s.calls) * 100)}% 成 · ${s.avg_ms}ms${s.tokens ? ` · ${s.tokens}tk` : ''}` : '未调用'}
+                   </small>
+                   <button type="button" className={`switch ${s.enabled ? 'on' : ''}`} role="switch" aria-checked={s.enabled}
+                     aria-label={s.label} onClick={() => toggleSkill(s)} />
+                 </div>
+               ))}
+             </div>
+           ))}
+         </div>
+
+         {/* M 集成与 MCP（R7.0 P5）：MCP 管理壳（登记/探测，不执行）+ 飞书文档读入 → 导入向导 */}
+         <div className="card" ref={(el) => (refs.current.mcp = el)}>
+           <h3>MCP 服务器（管理壳）
+             <button className="mini" style={{ marginLeft: 'auto', flex: 'none' }} onClick={() => setMcpEdit({ name: '', command: '', args: '', note: '' })}><IconPlus size={12} stroke={1.8} /> 登记</button>
+           </h3>
+           <div className="notice">v1 为<b>登记台账</b>：可记录服务器与参数、探测命令是否在 PATH 可解析（不执行目标命令）。真实协议接入涉及长进程与安全评审，待单独立项后消费本表。</div>
+           {!mcp && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+           {mcp && mcp.length === 0 && <div className="empty">尚未登记 MCP 服务器</div>}
+           {mcp?.map((m) => (
+             <div key={m.id} className="set-row" style={m.enabled ? undefined : { opacity: 0.55 }}>
+               <span className="lab">{m.name} <span className={`badge ${m.last_status === 'available' ? 'ok' : m.last_status === 'not_found' ? '' : 'neutral'}`}>{m.last_status === 'available' ? '可解析' : m.last_status === 'not_found' ? '未找到' : '未探测'}</span>
+                 <small>{m.command}{m.args ? ` ${m.args}` : ''}{m.note ? ` · ${m.note}` : ''}{m.last_check ? ` · 探测于 ${m.last_check}` : ''}</small>
+               </span>
+               <button className="mini" disabled={mcpBusy === m.id} onClick={() => runCheck(m)}><IconBolt size={12} stroke={1.8} /> {mcpBusy === m.id ? '探测中' : '探测'}</button>
+               <button type="button" className={`switch ${m.enabled ? 'on' : ''}`} role="switch" aria-checked={Boolean(m.enabled)} aria-label={`启用 ${m.name}`}
+                 onClick={async () => { try { await j(`/api/mcp/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !m.enabled }) }); setMcp(await j('/api/mcp')); } catch (e) { toast(e.message, 'err'); } }} />
+               <button className="mini" title="编辑" onClick={() => setMcpEdit({ ...m })}><IconPencil size={12} stroke={1.8} /></button>
+               {mcpDel === m.id
+                 ? <><button className="mini danger" onClick={() => removeMcp(m.id)}>确认</button><button className="mini" onClick={() => setMcpDel(null)}>取消</button></>
+                 : <button className="mini" title="删除" onClick={() => setMcpDel(m.id)}><IconTrash size={12} stroke={1.8} /></button>}
+             </div>
+           ))}
+           <hr className="divider" />
+           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+             <b style={{ fontSize: 12.5 }}>飞书文档读入（数据流入管道）</b>
+             <span className={`badge ${fsStatus?.configured ? 'ok' : ''}`} style={{ marginLeft: 'auto' }}>{fsStatus?.configured ? '凭据已配置' : '凭据未配置'}</span>
+           </div>
+           <div style={{ display: 'flex', gap: 8 }}>
+             <input style={{ flex: 1 }} placeholder="粘贴飞书文档链接（/docx/ 或 /wiki/），读为 Markdown 送入导入向导"
+               value={fsRef} onChange={(e) => setFsRef(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && fsRef.trim() && readFeishu()} disabled={!fsStatus?.configured} />
+             <button className="pri" disabled={!fsStatus?.configured || fsBusy || !fsRef.trim()} onClick={readFeishu}><IconCloudUpload size={13} stroke={1.8} /> {fsBusy ? '读取中…' : '读入'}</button>
+           </div>
+           {!fsStatus?.configured && <small style={{ color: 'var(--ink3)' }}>在 server/.env 配置 FEISHU_APP_ID/FEISHU_APP_SECRET（应用需开通 docx 读权限）后启用；数据可先走「数据流入」粘贴通道。</small>}
+           {fsDoc && (
+             <div style={{ marginTop: 10 }}>
+               <div className="notice">《{fsDoc.title || '无标题'}》· {fsDoc.blocks} 块已读为 Markdown</div>
+               <details className="itto-ref"><summary>预览内容</summary><pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, maxHeight: 240, overflow: 'auto' }}>{fsDoc.markdown}</pre></details>
+               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                 <button className="mini pri" onClick={sendToImport}>送入导入向导</button>
+                 <button className="mini" onClick={() => { navigator.clipboard?.writeText(fsDoc.markdown).then(() => toast('已复制', 'ok'), () => toast('复制失败', 'err')); }}><IconCopy size={12} stroke={1.8} /> 复制</button>
+               </div>
+             </div>
+           )}
+         </div>
+
+         {/* K 数据流入（R7.0 P2）：导入历史与说明（导入操作入口在工作台） */}
         <div className="card" ref={(el) => (refs.current.import = el)}>
           <h3>数据流入 · 导入历史</h3>
           <div className="notice">
@@ -634,6 +766,23 @@ export default function Settings({ onNavigate, onCoachStart }) {
           </Field>
           <Field label="排序（小者靠前）">
             <input type="number" style={{ width: 90 }} value={pEdit.sort ?? 0} onChange={(e) => setPEdit((d) => ({ ...d, sort: Number(e.target.value) }))} />
+          </Field>
+        </Modal>
+      )}
+      {mcpEdit && (
+        <Modal title={mcpEdit.id ? '编辑 MCP 服务器' : '登记 MCP 服务器'} onClose={() => setMcpEdit(null)} width={520}
+          footer={<><button onClick={() => setMcpEdit(null)}>取消</button><button className="pri" disabled={!mcpEdit.name.trim() || !mcpEdit.command.trim()} onClick={saveMcp}>保存</button></>}>
+          <Field label="名称（≤40 字）">
+            <input value={mcpEdit.name} maxLength={40} autoFocus onChange={(e) => setMcpEdit((d) => ({ ...d, name: e.target.value }))} placeholder="如：filesystem-mcp" />
+          </Field>
+          <Field label="命令（可执行名或绝对路径；登记壳不执行）">
+            <input value={mcpEdit.command} maxLength={200} onChange={(e) => setMcpEdit((d) => ({ ...d, command: e.target.value }))} placeholder="如：npx" />
+          </Field>
+          <Field label="参数（≤300 字）">
+            <input value={mcpEdit.args ?? ''} maxLength={300} onChange={(e) => setMcpEdit((d) => ({ ...d, args: e.target.value }))} placeholder="-y @modelcontextprotocol/server-filesystem /path" />
+          </Field>
+          <Field label="备注（≤200 字）">
+            <input value={mcpEdit.note ?? ''} maxLength={200} onChange={(e) => setMcpEdit((d) => ({ ...d, note: e.target.value }))} />
           </Field>
         </Modal>
       )}

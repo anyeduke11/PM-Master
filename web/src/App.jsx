@@ -32,10 +32,21 @@ export default function App() {
   const [autoScenario, setAutoScenario] = useState(null);   // 预警→教练闭环跳转
   const [profile, setProfile] = useState(null);
   const [projCtx, setProjCtx] = useState(null);      // 工作台选中项目 → 助手页面上下文
+  const [importPrefill, setImportPrefill] = useState(null);   // R7.0 P5：飞书读入 → 导入向导草稿（经事件桥，跨 tab 不丢）
   const [theme, setTheme] = useState(document.documentElement.dataset.theme || 'dark');   // R6.7 双主题
 
   useEffect(() => {
     fetch('/api/profile').then((r) => r.json()).then(setProfile);
+  }, []);
+
+  // R7.0 P5：Settings 派发 pm-import-prefill → 切工作台并携带草稿（Workbench 条件渲染，须在此中转）
+  useEffect(() => {
+    const h = (e) => {
+      setImportPrefill({ seq: Date.now(), text: e.detail?.text ?? '' });
+      setTab('work');
+    };
+    window.addEventListener('pm-import-prefill', h);
+    return () => window.removeEventListener('pm-import-prefill', h);
   }, []);
 
   // R7.0 P1：设置应用——减少动效开关；默认主题仅在用户从未手动切换时生效（localStorage 无 pm-theme）
@@ -105,7 +116,7 @@ export default function App() {
       {tab === 'coach' && <main style={{ overflow: 'hidden' }} className="page"><CoachRoom autoStart={autoScenario} onConsumed={() => setAutoScenario(null)} /></main>}
       {tab === 'work' && (
         <main style={{ overflow: 'hidden' }} className="page">
-          <Workbench goCoach={(sc) => { setAutoScenario(sc); setTab('coach'); }} onContext={(c) => setProjCtx(c?.project_id ?? null)} />
+          <Workbench goCoach={(sc) => { setAutoScenario(sc); setTab('coach'); }} onContext={(c) => setProjCtx(c?.project_id ?? null)} importPrefill={importPrefill} />
         </main>
       )}
       {tab === 'ra' && <main style={{ overflow: 'hidden' }} className="page"><RA /></main>}

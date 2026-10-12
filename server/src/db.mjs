@@ -356,6 +356,18 @@ CREATE TABLE IF NOT EXISTS memories (
   created_at TEXT DEFAULT (datetime('now','localtime')),
   updated_at TEXT
 );
+-- ===== R7.0 P5 MCP 管理壳：仅登记台账（which 探测命令存在性），真实协议接入待立项 =====
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  command TEXT NOT NULL,                            -- 服务器可执行名或绝对路径（v1 不执行）
+  args TEXT DEFAULT '',
+  note TEXT DEFAULT '',
+  enabled INTEGER DEFAULT 1,
+  last_status TEXT,                                 -- available | not_found（which 探测结果，非协议连通）
+  last_check TEXT,
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
 `);
 
 // 初始化一号用户档案（实例数据仅存库，不进代码）

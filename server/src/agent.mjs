@@ -5,6 +5,7 @@
 import { levelRequirements } from './standard.mjs';
 import { db } from './db.mjs';
 import { cfg } from './settings.mjs';   // R7.0 P1：LLM 配置热切换（KV > env），密钥/base_url 仍走 env
+import { skillEnabled } from './skills.mjs';   // R7.0 P5：技能注册表 kill-switch（skills 仅依赖 db，无环）
 
 // 观测落库（失败不反噬主流程）：purpose=调用用途, ms 含 429 退避等待; tokens={prompt_tokens,completion_tokens,total_tokens}|null（R5.2 WP2）
 function logCall(purpose, provider, model, ms, ok, error, tokens = null) {
@@ -110,6 +111,8 @@ export async function streamChat({ messages, profile }, onDelta) {
   const t0 = Date.now();
   let usage = null;
   try {
+    // R7.0 P5 kill-switch：助手流式回复同样受技能注册表停用控制（purpose='chat'）
+    if (!skillEnabled('chat')) throw new Error('「chat」AI 能力已在设置·技能注册表停用');
     const full = provider === 'openai'
       ? await streamOpenAI(messages, profile, onDelta, (u) => { usage = u; })
       : await streamMock(messages, profile, onDelta);
@@ -272,6 +275,8 @@ async function callJSON({ system, profile, history, maxTokens, model, purpose = 
   const t0 = Date.now();
   let usage = null;   // R5.2 WP2：openai usage 回传收集（mock/pi 无 usage → NULL）
   try {
+    // R7.0 P5 kill-switch：技能注册表（设置·L 区）停用的能力不进模型调用——失败照样落 llm_calls 可观测
+    if (!skillEnabled(purpose)) throw new Error(`「${purpose}」AI 能力已在设置·技能注册表停用`);
     let out;
     if (provider === 'openai') out = await callOpenAIJSON({ system, profile, history, maxTokens, model, purpose, usageSink: (u) => { usage = u; } });
     else if (provider === 'pi') out = await callPiJSON({ system, profile, history });
