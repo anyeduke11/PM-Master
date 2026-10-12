@@ -41,15 +41,67 @@ export function llmStats({ days = 30, purpose = null, limit = 50 } = {}) {
   };
 }
 
+const STYLE_HINT = {
+  coach: '语气专业、教练式（先提问澄清，再给方案）。',
+  direct: '语气专业、直接（结论先行，少反问，给可执行建议）。',
+  concise: '语气专业、极简（只给要点与关键依据，不展开铺垫）。',
+};
+const STRICT_HINT = {
+  lenient: '评定与反馈以鼓励为主，答到要点即认可。',
+  standard: '评定与反馈标准口径：肯定正确处，明确指出差距。',
+  strict: '评定与反馈从严：高门槛认可，重点指出差距与改进方向。',
+};
+
 export function buildSystemPrompt(profile) {
   // 动态上下文注入（PRD AI native 原则3）：等级+目标+剧本，约百 token
+  // R7.0 P4：persona（称呼/风格/严格度）+ 蒸馏画像（summary）+ 工作记忆 top5（置顶优先）；可经 persona.memory_on 关闭
   const req = levelRequirements(profile.target_level, profile.track);
   const journey = req.adaptation.journey[`L${profile.current_level}`] ?? '';
-  return [
+  const lines = [
     '你是 PM-Master 工作台的 AI 教练，服务项目管理专业人员的成长（GB/T 41831-2022 五级体系）。',
     `用户档案：当前 L${profile.current_level}，目标 L${profile.target_level}，通道 ${profile.track === 'pmo' ? 'PMO' : '项目/项目群组'}，成长剧本「${journey}」。`,
-    '回答要结合用户等级定制深度：知识解释对齐该级认知要求（know/apply/integrate），建议对齐该级证据要求。语气专业、简洁、教练式（先提问澄清，再给方案）。',
-  ].join('\n');
+    '回答要结合用户等级定制深度：知识解释对齐该级认知要求（know/apply/integrate），建议对齐该级证据要求。',
+  ];
+  if (cfg('persona.memory_on')) {
+    if (profile.summary) lines.push(`【用户画像】${String(profile.summary).slice(0, 500)}`);
+    const mem = db.prepare('SELECT content FROM memories ORDER BY pinned DESC, id DESC LIMIT 5').all();
+    if (mem.length) lines.push(`【工作记忆】\n${mem.map((m) => `- ${String(m.content).slice(0, 300)}`).join('\n')}`);
+  }
+  lines.push(`【交互设定】称呼用户为「${cfg('persona.address') || '你'}」。${STYLE_HINT[cfg('persona.style')] ?? STYLE_HINT.coach}${STRICT_HINT[cfg('persona.strictness')] ?? STRICT_HINT.standard}`);
+  return lines.join('\n');
+}
+
+// ================= R7.0 P4 画像蒸馏 + 记忆提取 =================
+// 蒸馏：档案+能力分+近期证据 → 一段可注入上下文的画像（强模型，低频高价值；产出人可编辑后再入库）
+export async function profileDistillChat({ profile, scores, evidence }) {
+  const out = await callJSON({
+    system: [
+      '你是 PM-Master 画像蒸馏器。基于给定档案、三维能力分与近期证据清单，提炼一段「AI 教练持续了解用户」的画像：',
+      '≤200 字中文，第三人称「该用户」开头；覆盖：角色与等级现状、强项（引用高分指标）、当前短板与目标差距、',
+      '工作重心（从证据项目/场景归纳）、一条培养建议。只依据给定数据，不臆造；数据缺失的维度直接省略。',
+      '严格只输出 JSON：{"summary":"画像正文"}',
+    ].join('\n'),
+    profile,
+    history: [{ role: 'user', content: JSON.stringify({ profile, scores, evidence }) }],
+    maxTokens: 2000, purpose: 'profile_distill',
+  });
+  return { summary: String(out?.summary ?? '').slice(0, 500) };
+}
+
+// 记忆提取：教练会话归档 → 值得长期记住的用户事实/偏好（快模型；产出即入库，用户可在设置删除）
+export async function memoryExtractChat({ scenario, artifactSummary, ratings }) {
+  const out = await callJSON({
+    system: [
+      '你是 PM-Master 记忆提取器。从一次 GROW 教练会话的归档产物中提取「值得 AI 长期记住的用户事实」',
+      '（工作情境、管理风格、明确表达的偏好/目标/困扰；不提取一次性任务细节与常识）。',
+      '每条 ≤80 字中文、独立成条、第三人称（「该用户…」）；最多 3 条，没有值得记的给空数组。',
+      '严格只输出 JSON：{"memories":["…"]}',
+    ].join('\n'),
+    profile: { current_level: 4, target_level: 5, track: 'project' },
+    history: [{ role: 'user', content: JSON.stringify({ scenario, artifact_summary: artifactSummary, ratings }) }],
+    maxTokens: 1200, model: cfg('llm.model_fast'), purpose: 'memory_extract',
+  });
+  return { memories: (Array.isArray(out?.memories) ? out.memories : []).map((m) => String(m).slice(0, 300)).filter(Boolean).slice(0, 3) };
 }
 
 // 流式生成：onDelta(token) 逐段回调；返回完整文本（WP8：chat 用途观测；R6.2 WP2：SSE usage 计 token，网关不支持则 NULL）
@@ -495,6 +547,18 @@ function mockJSON(system, profile, history) {
   // R6.6 助手意图确定性分支（仅 mock：无密钥 e2e 可跑通「计划→确认→执行」全链路）
   if (system.includes('全局 AI 助手') && /登记风险/.test(last?.content ?? '')) {
     return { intent: 'risk.create', params: { title: String(last.content).split(/[：:]/)[1]?.trim().slice(0, 40) || '（mock）风险标题' } };
+  }
+  // R7.0 P4 画像蒸馏/记忆提取 mock 分支（J9/J10 回归锚：无密钥环境确定性产出）
+  if (system.includes('画像蒸馏器')) {
+    let req = {};
+    try { req = JSON.parse(last?.content ?? '{}'); } catch { /* 保持空 */ }
+    const p = req.profile ?? {};
+    return { summary: `（mock 画像）该用户当前 L${p.current_level ?? '?'}，目标 L${p.target_level ?? '?'}（${p.track === 'pmo' ? 'PMO' : '项目'}通道），证据 ${req.evidence?.length ?? 0} 项，综合分 ${req.scores?.composite ?? '-'}，重点培养短板维度。` };
+  }
+  if (system.includes('记忆提取器')) {
+    let req = {};
+    try { req = JSON.parse(last?.content ?? '{}'); } catch { /* 保持空 */ }
+    return { memories: [`该用户在「${req.scenario?.name ?? '教练会话'}」中聚焦：${String(req.artifact_summary ?? '行动方案').slice(0, 40)}`] };
   }
   // R7.0 P3 巡检简报 mock 分支（J7 回归锚：无密钥环境 digest 通道确定性）
   if (system.includes('巡检简报撰写器')) {

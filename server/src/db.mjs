@@ -345,6 +345,17 @@ CREATE TABLE IF NOT EXISTS prompts (
   sort INTEGER DEFAULT 0,                           -- 升序展示
   created_at TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- ===== R7.0 P4 记忆：AI 对用户的工作记忆（蒸馏画像走 user_profile.summary；此处为条目级记忆） =====
+CREATE TABLE IF NOT EXISTS memories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT DEFAULT 'note',                         -- note(用户手记) | coach(教练会话提取) | chat(对话提取，P5)
+  content TEXT NOT NULL,                            -- ≤300 字
+  source TEXT,                                      -- 来源引用（coach#<id> / manual）
+  pinned INTEGER DEFAULT 0,                         -- 1=置顶（注入优先）
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  updated_at TEXT
+);
 `);
 
 // 初始化一号用户档案（实例数据仅存库，不进代码）

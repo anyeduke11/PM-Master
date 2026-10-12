@@ -21,6 +21,13 @@ export const DEFAULTS = {
   'ui.default_theme': { group: 'feature', type: 'enum', values: ['dark', 'light'], default: 'dark', label: '默认主题（首次访问）' },
   'ui.reduce_motion': { group: 'feature', type: 'bool', default: false, label: '减少动效' },
   'patrol.usage_warn_errors': { group: 'feature', type: 'int', default: 10, min: 1, max: 100, label: '日用量预警阈值（失败次数，P3 巡检启用）' },
+  // —— F AI 角色 persona（R7.0 P4；注入 buildSystemPrompt） ——
+  'persona.address': { group: 'persona', type: 'string', default: '你', label: '对用户的称呼', maxLen: 10 },
+  'persona.style': { group: 'persona', type: 'enum', values: ['coach', 'direct', 'concise'], default: 'coach', label: '回复风格',
+    enumLabels: { coach: '教练式（先提问澄清再给方案）', direct: '直接（结论先行，少反问）', concise: '极简（只给要点不展开）' } },
+  'persona.strictness': { group: 'persona', type: 'enum', values: ['lenient', 'standard', 'strict'], default: 'standard', label: '评定严格度',
+    enumLabels: { lenient: '鼓励（宽口径给分）', standard: '标准（宁缺毋滥适中）', strict: '严格（高门槛，多指出差距）' } },
+  'persona.memory_on': { group: 'persona', type: 'bool', default: true, label: '注入记忆与画像到 AI 上下文' },
 };
 
 const getRaw = (key) => db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value;
@@ -63,7 +70,7 @@ export function allSettings() {
     const env = envValue(key, def);
     return {
       key, group: def.group, type: def.type, label: def.label,
-      values: def.values ?? null, min: def.min ?? null, max: def.max ?? null,
+      values: def.values ?? null, labels: def.enumLabels ?? null, min: def.min ?? null, max: def.max ?? null,
       default: def.default, env: def.env ?? null,
       effective: kv !== undefined ? kv : (env !== undefined ? env : def.default),
       source: kv !== undefined ? 'db' : (env !== undefined ? 'env' : 'default'),

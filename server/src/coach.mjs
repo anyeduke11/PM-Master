@@ -5,6 +5,7 @@ import { loadStandard } from './standard.mjs';
 import { db, getProfile } from './db.mjs';
 import { coachChat, ratingChat } from './agent.mjs';
 import { markTrained } from './growth-links.mjs';
+import { extractFromSession } from './memory.mjs';   // R7.0 P4 归档即提取记忆（失败不反噬归档）
 import { badRequest, notFound, conflict, forbidden } from './errors.mjs';   // R6.4 错误风格
 
 // ---------- 场景装载（indicator-training-map.yaml + 等级解锁） ----------
@@ -220,5 +221,7 @@ export async function closeSession(id, { projectId = null } = {}) {
 
   const closing = { ratings: valid, evidence_id: ev.lastInsertRowid, artifact_summary };
   s.data.closing = closing; save(s);
+  // R7.0 P4 记忆自动提取（归档即提取；失败不反噬归档——记忆是增量通道）
+  try { await extractFromSession({ ...sc, session_id: id }, closing); } catch { /* 静默降级：无记忆不影响归档 */ }
   return closing;
 }

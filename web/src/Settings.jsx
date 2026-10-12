@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles, IconRadar, IconBolt, IconMessageCode, IconPlus, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles, IconRadar, IconBolt, IconMessageCode, IconPlus, IconPencil, IconTrash, IconUserCircle, IconBrain, IconPin, IconRefresh } from '@tabler/icons-react';
 import { toast, Modal, Field } from './ui.jsx';
 
 // R7.0 P1 设置中心：A 系统状态 / B LLM 与模型（热切换）/ C 可观测性 / E 功能开关
 // R7.0 P2：K 数据流入（导入历史与说明）/ G 工具频率（使用排行/冷门推荐/训练任务）
 // R7.0 P3：J 巡检简报（调度状态+findings+动作路由）/ I 提示词库（常用场景固化）
+// R7.0 P4：F 档案与蒸馏（persona + 画像蒸馏）/ H 记忆与上下文（条目 CRUD + 注入预览）
 // 左锚点导航 + 右分区卡片；窄屏导航横滚、单列堆叠（CSS 断点处理）
 const SECTIONS = [
   ['sys', '系统状态', IconSettings],
   ['llm', 'LLM 与模型', IconRobot],
   ['obs', '可观测性', IconChartDots3],
   ['feature', '功能开关', IconToggleLeft],
+  ['persona', '档案与蒸馏', IconUserCircle],
+  ['memory', '记忆与上下文', IconBrain],
   ['import', '数据流入', IconDownload],
   ['tools', '工具频率', IconTrendingUp],
   ['patrol', '巡检简报', IconRadar],
@@ -38,6 +41,12 @@ export default function Settings({ onNavigate, onCoachStart }) {
   const [prompts, setPrompts] = useState(null);     // R7.0 P3 I 区：提示词库
   const [pEdit, setPEdit] = useState(null);         // 编辑中提示词 {id?, title, content, sort}（null=关）
   const [pDel, setPDel] = useState(null);           // 待删除确认的提示词 id
+  const [memories, setMemories] = useState(null);   // R7.0 P4 H 区：记忆条目
+  const [ctx, setCtx] = useState(null);             // R7.0 P4 H 区：上下文预览
+  const [memInput, setMemInput] = useState('');     // 手记输入
+  const [memDel, setMemDel] = useState(null);       // 待删除确认记忆 id
+  const [summaryEdit, setSummaryEdit] = useState(null);  // F 区：画像编辑文本（null=非编辑态）
+  const [distilling, setDistilling] = useState(false);
   const refs = useRef({});
 
   async function j(url, opts) {
@@ -47,12 +56,13 @@ export default function Settings({ onNavigate, onCoachStart }) {
   }
   async function loadAll() {
     try {
-      const [sys, set, st, lg, us, rp, sc, pm] = await Promise.all([
+      const [sys, set, st, lg, us, rp, sc, pm, mm, cx] = await Promise.all([
         j('/api/settings/system'), j('/api/settings'), j('/api/llm/stats'),
         j('/api/import/logs'), j('/api/tools/usage'), j('/api/patrol/reports'), j('/api/scheduler'), j('/api/prompts'),
+        j('/api/memories'), j('/api/context/preview'),
       ]);
       setSystem(sys); setSettings(set); setStats(st); setLogs(lg); setUsage(us);
-      setReports(rp); setSched(sc); setPrompts(pm); setDraft({});
+      setReports(rp); setSched(sc); setPrompts(pm); setMemories(mm); setCtx(cx); setDraft({});
     } catch (e) { toast(`设置加载失败：${e.message}`, 'err'); }
   }
   useEffect(() => { loadAll(); }, []);
@@ -151,6 +161,55 @@ export default function Settings({ onNavigate, onCoachStart }) {
     } catch (e) { toast(e.message, 'err'); }
   }
 
+  // —— R7.0 P4 F 区：画像蒸馏 + 编辑保存（写 user_profile.summary，下次 AI 调用即注入） ——
+  async function runDistill() {
+    setDistilling(true);
+    try {
+      const r = await j('/api/profile/distill', { method: 'POST' });
+      toast('画像已蒸馏并写入（可编辑后保存）', 'ok');
+      setCtx(await j('/api/context/preview'));
+      setSummaryEdit(r.summary);
+    } catch (e) { toast(`蒸馏失败：${e.message}`, 'err'); }
+    setDistilling(false);
+  }
+  async function saveSummary() {
+    try {
+      await j('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: summaryEdit || null }) });
+      setCtx(await j('/api/context/preview'));
+      setSummaryEdit(null);
+      toast('画像已保存（下次 AI 调用生效）', 'ok');
+    } catch (e) { toast(`保存失败：${e.message}`, 'err'); }
+  }
+
+  // —— R7.0 P4 H 区：记忆条目 CRUD + 预览刷新 ——
+  async function addMem() {
+    const c = memInput.trim();
+    if (!c) return;
+    try {
+      await j('/api/memories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: c }) });
+      setMemInput('');
+      setMemories(await j('/api/memories'));
+      setCtx(await j('/api/context/preview'));
+      toast('已记住', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  async function togglePin(m) {
+    try {
+      await j(`/api/memories/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned: !m.pinned }) });
+      setMemories(await j('/api/memories'));
+      setCtx(await j('/api/context/preview'));
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  async function removeMem(id) {
+    try {
+      await j(`/api/memories/${id}`, { method: 'DELETE' });
+      setMemories(await j('/api/memories'));
+      setCtx(await j('/api/context/preview'));
+      setMemDel(null);
+      toast('已删除', 'ok');
+    } catch (e) { toast(`删除失败：${e.message}`, 'err'); }
+  }
+
   // —— 单行渲染器：按 type 出控件；「恢复」按钮=写 null 删 KV 行 ——
   function row(s) {
     const v = eff(s);
@@ -162,7 +221,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
         aria-label={s.label} onClick={() => set(!v)} />;
     } else if (s.type === 'enum') {
       ctl = <select value={v ?? ''} onChange={(e) => set(e.target.value)}>
-        {s.values.map((o) => <option key={o} value={o}>{o}</option>)}
+        {(s.values ?? []).map((o) => <option key={o} value={o}>{s.labels?.[o] ?? o}</option>)}
       </select>;
     } else if (s.type === 'int') {
       ctl = <input type="number" value={v ?? ''} min={s.min} max={s.max}
@@ -174,7 +233,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
       <div key={s.key} className="set-row">
         <span className="lab">{s.label}<small>{s.key}{s.env ? ` · env: ${s.env}` : ''}{s.min != null ? ` · ${s.min}-${s.max}` : ''}</small></span>
         <span className={`src-tag ${dirty ? 'db' : s.source === 'db' ? 'db' : s.source === 'env' ? 'env' : ''}`}>{dirty ? '待保存' : SRC_LABEL[s.source]}</span>
-        {s.source === 'db' && !dirty && s.group === 'llm' && (
+        {s.source === 'db' && !dirty && (s.group === 'llm' || s.group === 'persona') && (
           <button className="mini" title="清除 DB 覆盖，恢复 env/默认" disabled={saving} onClick={() => save({ [s.key]: null })}>恢复</button>
         )}
         {ctl}
@@ -194,7 +253,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
           </button>
         ))}
         <div style={{ marginTop: 8, padding: '8px 6px 2px', borderTop: '1px dashed var(--line)', fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.7 }}>
-          P4 规划：蒸馏画像 / 记忆与上下文 / Skill 注册表
+          P5 规划：Skill 注册表 / MCP 管理 / 飞书读入
         </div>
       </nav>
 
@@ -329,6 +388,85 @@ export default function Settings({ onNavigate, onCoachStart }) {
             <button className="mini" onClick={() => window.open('/api/export/json', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 数据快照 JSON</button>
             <button className="mini" onClick={() => window.open('/api/scheduler', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 调度任务状态</button>
           </div>
+        </div>
+
+        {/* F 档案与蒸馏（R7.0 P4）：AI persona 设定 + 画像蒸馏（写 summary，下次 AI 调用注入） */}
+        <div className="card" ref={(el) => (refs.current.persona = el)}>
+          <h3>AI 角色与画像
+            {dirtyCount > 0 && (
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <button className="mini" onClick={() => setDraft({})}>放弃修改</button>
+                <button className="mini pri" disabled={saving} onClick={() => save()}>{saving ? '保存中…' : `保存 ${dirtyCount} 项`}</button>
+              </span>
+            )}
+          </h3>
+          {!settings && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+          {settings && <div className="set-rows">{byGroup('persona').map(row)}</div>}
+          <small style={{ color: 'var(--ink3)' }}>persona 保存后下次 AI 调用即生效（注入 system prompt 的交互设定）。</small>
+          <hr className="divider" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <b style={{ fontSize: 12.5 }}>画像蒸馏（档案 + 能力分 + 近期证据 → 一段 AI 持续了解的画像）</b>
+            <button className="mini pri" style={{ marginLeft: 'auto', flex: 'none' }} disabled={distilling} onClick={runDistill}>
+              <IconRefresh size={12} stroke={1.8} /> {distilling ? '蒸馏中（强模型）…' : '重新蒸馏'}
+            </button>
+          </div>
+          {summaryEdit === null ? (
+            ctx?.summary
+              ? (
+                <div className="itto-ctx" style={{ whiteSpace: 'pre-wrap' }}>
+                  {ctx.summary}
+                  <div style={{ marginTop: 6 }}><button className="mini" onClick={() => setSummaryEdit(ctx.summary)}><IconPencil size={11} stroke={1.8} /> 编辑</button></div>
+                </div>
+              )
+              : <div className="empty">尚无画像——蒸馏后每次 AI 调用自动携带（约 100 token）；教练归档的记忆会自动补充细节</div>
+          ) : (
+            <div>
+              <textarea style={{ width: '100%', minHeight: 90 }} maxLength={500} value={summaryEdit}
+                onChange={(e) => setSummaryEdit(e.target.value)} />
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button className="mini pri" disabled={!summaryEdit.trim()} onClick={saveSummary}>保存画像</button>
+                <button className="mini" onClick={() => setSummaryEdit(null)}>取消</button>
+                <button className="mini danger" style={{ marginLeft: 'auto' }} onClick={() => setSummaryEdit('')}>清空</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* H 记忆与上下文（R7.0 P4）：条目级工作记忆 CRUD + 注入透明化预览 */}
+        <div className="card" ref={(el) => (refs.current.memory = el)}>
+          <h3>记忆与上下文</h3>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <input style={{ flex: 1 }} placeholder="告诉 AI 需要长期记住的事（≤300 字），如：我的周报口径以 EVM 为准"
+              value={memInput} onChange={(e) => setMemInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMem()} />
+            <button className="pri" disabled={!memInput.trim()} onClick={addMem}>记住</button>
+          </div>
+          {!memories && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
+          {memories && memories.length === 0 && <div className="empty">暂无记忆——教练会话归档时会自动提取（kind=coach），也可手动添加</div>}
+          {memories?.map((m) => (
+            <div key={m.id} className="set-row">
+              <span className="lab">{m.content}
+                <small>{m.kind === 'coach' ? '教练提取' : m.kind === 'chat' ? '对话提取' : '手记'} · {m.source ?? 'manual'}{m.pinned ? ' · 置顶' : ''}</small>
+              </span>
+              <button className={`mini ${m.pinned ? 'pri' : ''}`} title={m.pinned ? '取消置顶' : '置顶（注入优先）'} onClick={() => togglePin(m)}><IconPin size={12} stroke={1.8} /></button>
+              {memDel === m.id
+                ? <><button className="mini danger" onClick={() => removeMem(m.id)}>确认删除</button><button className="mini" onClick={() => setMemDel(null)}>取消</button></>
+                : <button className="mini" title="删除" onClick={() => setMemDel(m.id)}><IconTrash size={12} stroke={1.8} /></button>}
+            </div>
+          ))}
+          {ctx && (
+            <>
+              <hr className="divider" />
+              <div className="kpi-row">
+                <div className="kpi"><b style={{ fontSize: 14 }}>L{ctx.profile.current_level} → L{ctx.profile.target_level}</b><span>档案（{ctx.profile.track === 'pmo' ? 'PMO' : '项目'}通道）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: ctx.summary ? 'var(--ok)' : 'var(--ink3)' }}>{ctx.summary ? '已生成' : '未生成'}</b><span>画像注入</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: 'var(--accent)' }}>{ctx.memory_injection.injected}/{ctx.memory_injection.total}</b><span>记忆注入（top5 置顶优先）</span></div>
+              </div>
+              <details className="itto-ref">
+                <summary>查看实际注入的 system prompt（AI 现在知道什么）</summary>
+                <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{ctx.system_prompt}</div>
+              </details>
+            </>
+          )}
         </div>
 
         {/* K 数据流入（R7.0 P2）：导入历史与说明（导入操作入口在工作台） */}

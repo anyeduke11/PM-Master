@@ -8,6 +8,7 @@ import { importKinds, importPreview, importCommit, importLogs } from './import-f
 import { toolUsage, assignToolTask } from './tools-usage.mjs';                              // R7.0 P2 工具频率
 import { patrolRun, patrolReports } from './patrol.mjs';                                    // R7.0 P3 每日巡检
 import { listPrompts, createPrompt, updatePrompt, deletePrompt } from './prompts.mjs';      // R7.0 P3 提示词库
+import { listMemories, addMemory, updateMemory, deleteMemory, distillProfile, contextPreview } from './memory.mjs';   // R7.0 P4 记忆与画像
 import { listScenarios, createSession, loadSession, handleMessage, control, closeSession, phasePlan } from './coach.mjs';
 
 const app = Fastify({ logger: { transport: undefined } });
@@ -342,6 +343,14 @@ app.get('/api/prompts', async (req) => listPrompts({ enabledOnly: req.query?.ena
 app.post('/api/prompts', async (req) => createPrompt(req.body ?? {}));
 app.put('/api/prompts/:id', async (req) => updatePrompt(req.params.id, req.body ?? {}));
 app.delete('/api/prompts/:id', async (req) => deletePrompt(req.params.id));
+
+// ---------- R7.0 P4 记忆与画像（F/H 区） ----------
+app.get('/api/memories', async (req) => listMemories(req.query?.limit));
+app.post('/api/memories', async (req) => addMemory(req.body ?? {}));
+app.put('/api/memories/:id', async (req) => updateMemory(req.params.id, req.body ?? {}));
+app.delete('/api/memories/:id', async (req) => deleteMemory(req.params.id));
+app.post('/api/profile/distill', async () => distillProfile());
+app.get('/api/context/preview', async () => contextPreview());
 app.post('/api/growth/monthly-report', async () => {
   try { return { report: monthlyReport() }; }
   catch (e) { return { error: String(e.message) }; }

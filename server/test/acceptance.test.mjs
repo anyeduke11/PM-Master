@@ -29,6 +29,8 @@ const { importPreview, importCommit, importLogs } = await import('../src/import-
 const { toolUsage, assignToolTask } = await import('../src/tools-usage.mjs');                 // R7.0 P2 工具频率
 const { patrolScan, patrolRun, patrolReports } = await import('../src/patrol.mjs');           // R7.0 P3 每日巡检
 const { listPrompts, createPrompt, updatePrompt, deletePrompt } = await import('../src/prompts.mjs');   // R7.0 P3 提示词库
+const { listMemories, addMemory, updateMemory, deleteMemory, distillProfile, contextPreview } = await import('../src/memory.mjs');   // R7.0 P4 记忆与画像
+const { buildSystemPrompt } = await import('../src/agent.mjs');                                          // R7.0 P4 注入断言
 const { generateWeekly } = await import('../src/workbench.mjs');                              // R7.0 P2 周报回归
 const { review } = await import('../src/drill.mjs');
 const { seedCards } = await import('../src/seeds.mjs');
@@ -789,4 +791,59 @@ test('J8 提示词库：CRUD 校验 + 启停过滤 + 排序 + 删除不存在 40
   assert.equal(deletePrompt(p2.id).ok, true);
   assert.throws(() => deletePrompt(p2.id), /不存在/, '重复删除 404');
   deletePrompt(p1.id);
+});
+
+// ============ J9-J11 R7.0 P4 记忆与画像（蒸馏/提取/注入透明化） ============
+
+test('J9 记忆 CRUD：校验/去重/置顶排序/删除 404', () => {
+  assert.throws(() => addMemory({ kind: 'weird', content: 'x' }), /kind 仅接受/, '未知 kind 拒绝');
+  assert.throws(() => addMemory({ content: '  ' }), /不得为空/, '空内容拒绝');
+  assert.throws(() => addMemory({ content: 'y'.repeat(301) }), /超长/, '超 300 字拒绝');
+  const m1 = addMemory({ content: '该用户偏好周会周五召开（J9 桩）' });
+  assert.throws(() => addMemory({ content: '该用户偏好周会周五召开（J9 桩）' }), /重复/, '同内容去重');
+  const m2 = addMemory({ content: '该用户负责三个数据类项目（J9 桩）', pinned: true });
+  const list = listMemories();
+  assert.equal(list[0].id, m2.id, '置顶优先');
+  assert.equal(updateMemory(m1.id, { pinned: true }).pinned, 1, '可置顶');
+  assert.equal(updateMemory(m1.id, { pinned: false }).pinned, 0);
+  assert.throws(() => updateMemory(m1.id, { content: '' }), /不得为空/, '显式空内容拒绝');
+  assert.equal(deleteMemory(m1.id).ok, true);
+  assert.throws(() => deleteMemory(m1.id), /不存在/, '重复删除 404');
+  deleteMemory(m2.id);
+});
+
+test('J10 画像蒸馏：mock 通道 → summary 写入 user_profile（P1 归还列的消费方）', async () => {
+  const r = await distillProfile();
+  assert.match(r.summary, /该用户/, 'mock 蒸馏应产出画像');
+  assert.equal(getProfile().summary, r.summary, '写入 summary 列（原生语义）');
+  assert.equal(getProfile().assistant_prefs, null, '蒸馏不影响 KV 偏好（P1 迁移隔离性）');
+  updateProfile({ summary: null });   // 复原（测试库内不残留画像）
+});
+
+test('J11 buildSystemPrompt 注入：画像+记忆+persona 设定；memory_on=0 关闭注入', () => {
+  updateProfile({ summary: '该用户是数据治理专项群负责人（J11 桩）' });
+  const mem = addMemory({ content: '该用户习惯结论先行汇报（J11 桩）' });
+  setSettings({ 'persona.address': '王总', 'persona.style': 'direct', 'persona.strictness': 'strict' });
+  const p = getProfile();
+  const sp = buildSystemPrompt(p);
+  assert.ok(sp.includes('该用户是数据治理专项群负责人'), '画像应注入');
+  assert.ok(sp.includes('该用户习惯结论先行汇报'), '记忆应注入');
+  assert.ok(sp.includes('称呼用户为「王总」'), 'persona 称呼生效');
+  assert.ok(sp.includes('结论先行'), 'style=direct 话术生效');
+  assert.ok(sp.includes('从严'), 'strictness=strict 话术生效');
+  setSettings({ 'persona.memory_on': false });
+  const sp2 = buildSystemPrompt(p);
+  assert.ok(!sp2.includes('J11 桩'), 'memory_on=0 关闭画像与记忆注入');
+  assert.ok(sp2.includes('称呼用户为「王总」'), 'persona 基础设定不受 memory_on 影响');
+  // 上下文预览契约（H 区数据源）
+  setSettings({ 'persona.memory_on': true });
+  const pv = contextPreview();
+  assert.equal(pv.summary, '该用户是数据治理专项群负责人（J11 桩）');
+  assert.ok(pv.memory_injection.items.some((m) => m.id === mem.id), '预览含注入记忆');
+  assert.ok(pv.persona.length === 4 && pv.persona.every((x) => x.effective != null), 'persona 四键齐备');
+  assert.ok(pv.system_prompt.includes('J11 桩'), '预览 system_prompt 即实际注入内容');
+  // 复原
+  deleteMemory(mem.id);
+  updateProfile({ summary: null });
+  setSettings({ 'persona.address': null, 'persona.style': null, 'persona.strictness': null, 'persona.memory_on': null });
 });
