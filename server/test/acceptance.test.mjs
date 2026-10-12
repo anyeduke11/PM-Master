@@ -8,6 +8,8 @@
 // 诚实标注：C4（飞书真实写回）为避免每次回归产生线上文档标 skip，写回链路由 C5 降级路径 + R3.2 人工实测覆盖；
 //           D1-D3 原为浏览器交互用例，此处以 Growth 页所依赖的 API 数据契约作确定性替身（渲染层仍需人工验收）
 process.env.AGENT_PROVIDER = 'mock';
+// 飞书凭据默认清除（零密钥回归）；RUN_FEISHU_LIVE=1 时 J14 临时注入走真实闭环（仅该用例，用毕即清）
+const FEISHU_CRED = { id: process.env.FEISHU_APP_ID || '', secret: process.env.FEISHU_APP_SECRET || '' };
 process.env.FEISHU_APP_ID = '';
 process.env.FEISHU_APP_SECRET = '';
 
@@ -892,16 +894,29 @@ test('J13 MCP 管理壳：CRUD 校验 + which 探测（不执行目标命令）'
   assert.throws(() => deleteMcp(id), /不存在/, '重复删除 404');
 });
 
-test('J14 飞书读入：引用解析纯函数 + 凭据/入参两分支错误（不打网络）', async () => {
-  const { parseDocRef, readDoc, feishuConfigured } = await import('../src/feishu.mjs');
+test('J14 飞书读入：引用解析纯函数 + 降级提示（RUN_FEISHU_LIVE=1 时加跑真实 API 自产自读闭环）', async () => {
+  const { parseDocRef, readDoc, exportDoc, feishuConfigured } = await import('../src/feishu.mjs');
   assert.deepEqual(parseDocRef('https://xx.feishu.cn/docx/AbC123xyz'), { kind: 'docx', token: 'AbC123xyz' });
   assert.deepEqual(parseDocRef('https://xx.feishu.cn/wiki/WkNode1token'), { kind: 'wiki', token: 'WkNode1token' });
   assert.deepEqual(parseDocRef('BareDocToken1234'), { kind: 'docx', token: 'BareDocToken1234' });
   assert.equal(parseDocRef('不是链接'), null);
   assert.equal(parseDocRef(''), null);
-  if (feishuConfigured()) {
-    await assert.rejects(() => readDoc('垃圾引用'), /无法解析/, '有凭据：坏引用 BAD_REF（解析在网络之前）');
-  } else {
-    await assert.rejects(() => readDoc('https://x/docx/TOKEN123456'), /飞书未配置/, '无凭据：明确降级提示');
+  await assert.rejects(() => readDoc('https://x/docx/TOKEN123456'), /飞书未配置/, '无凭据：明确降级提示');
+  const live = process.env.RUN_FEISHU_LIVE === '1' && FEISHU_CRED.id && FEISHU_CRED.secret;
+  if (!live) return;   // 默认离线回归（同 C4 约定：真实写回不每次跑，避免线上产生文档）
+  process.env.FEISHU_APP_ID = FEISHU_CRED.id;
+  process.env.FEISHU_APP_SECRET = FEISHU_CRED.secret;
+  try {
+    assert.equal(feishuConfigured(), true);
+    await assert.rejects(() => readDoc('垃圾引用'), /无法解析/, '坏引用：解析在网络之前（凭据门在解析之后）');
+    // 真实闭环：自产自读，标题带 TEST 标记便于云盘识别
+    const w = await exportDoc({ title: 'readDoc 自测闭环（TEST-AUTO）', markdown: '# 闭环标题\n## 一、节\n正文关键句 42。\n- 列表项甲' });
+    const d = await readDoc(w.url);
+    assert.equal(d.title, 'readDoc 自测闭环（TEST-AUTO）');
+    assert.ok(d.markdown.includes('# 闭环标题') && d.markdown.includes('正文关键句 42'), '块结构还原');
+    assert.ok(d.blocks >= 3, '块数合理');
+  } finally {
+    process.env.FEISHU_APP_ID = '';
+    process.env.FEISHU_APP_SECRET = '';
   }
 });

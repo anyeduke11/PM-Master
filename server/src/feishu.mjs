@@ -94,7 +94,9 @@ export function parseDocRef(s) {
 
 async function apiGet(path, token) {
   const res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  const j = await res.json();
+  const txt = await res.text();
+  let j;
+  try { j = JSON.parse(txt); } catch { throw new Error(`飞书 API ${path.split('?')[0]} 非 JSON 响应（HTTP ${res.status}，常见原因：权限未开通或端点错误）`); }
   if (j.code !== 0) throw new Error(`飞书 API ${path.split('?')[0]}: ${j.msg}`);
   return j.data;
 }
@@ -105,9 +107,10 @@ function blocks2md(items) {
   return items.map((b) => {
     const t = b.block_type;
     if (t >= 3 && t <= 11) return `${'#'.repeat(t - 2)} ${b[`heading${t - 2}`]?.elements?.map((e) => e.text_run?.content ?? '').join('') ?? ''}`;
-    if (t === 12) return `- ${textOf(b.bullet ?? b)}`;
-    if (t === 13) return `1. ${textOf(b.ordered ?? b)}`;
-    return textOf(b.text ?? b);
+    if (t === 12) return `- ${textOf(b.bullet ?? {})}`;
+    if (t === 13) return `1. ${textOf(b.ordered ?? {})}`;
+    if (t === 14) return `> ${textOf(b.quote ?? {})}`;
+    return textOf(b.text ?? {});
   }).join('\n');
 }
 
@@ -128,11 +131,12 @@ export async function readDoc(ref) {
     docId = node.obj_token;
   }
   const doc = await apiGet(`/docx/v1/documents/${docId}`, token);
+  // 直接子块分页（root block id = document_id；官方 blocks/children 接口，≤50/页）
   const items = [];
   let pageToken = '';
-  for (let guard = 0; guard < 40; guard++) {   // 分页保护：≤40 页 × 500 块
-    const qs = `page_size=500${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
-    const data = await apiGet(`/docx/v1/documents/${docId}/allBlocks?${qs}`, token);
+  for (let guard = 0; guard < 100; guard++) {
+    const qs = `page_size=50${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+    const data = await apiGet(`/docx/v1/documents/${docId}/blocks/${docId}/children?${qs}`, token);
     items.push(...(data.items ?? []));
     if (!data.has_more) break;
     pageToken = data.page_token ?? '';
