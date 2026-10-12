@@ -92,14 +92,15 @@ export function parseDocRef(s) {
   return null;
 }
 
-async function apiGet(path, token) {
-  const res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+async function apiReq(method, path, token) {
+  const res = await fetch(`${BASE}${path}`, { method, headers: { Authorization: `Bearer ${token}` } });
   const txt = await res.text();
   let j;
-  try { j = JSON.parse(txt); } catch { throw new Error(`飞书 API ${path.split('?')[0]} 非 JSON 响应（HTTP ${res.status}，常见原因：权限未开通或端点错误）`); }
-  if (j.code !== 0) throw new Error(`飞书 API ${path.split('?')[0]}: ${j.msg}`);
+  try { j = JSON.parse(txt); } catch { throw new Error(`飞书 API ${method} ${path.split('?')[0]} 非 JSON 响应（HTTP ${res.status}，常见原因：权限未开通或端点错误）`); }
+  if (j.code !== 0) throw new Error(`飞书 API ${method} ${path.split('?')[0]}: ${j.msg}`);
   return j.data;
 }
+const apiGet = (path, token) => apiReq('GET', path, token);
 
 // docx blocks → Markdown（demo 级保真：标题/正文/列表/表格行展平；读入目的是喂导入向导，非排版还原）
 function blocks2md(items) {
@@ -142,4 +143,24 @@ export async function readDoc(ref) {
     pageToken = data.page_token ?? '';
   }
   return { document_id: docId, title: doc.document?.title ?? '', markdown: blocks2md(items), blocks: items.length };
+}
+
+// 删除飞书文档（移入云盘回收站；应用需开通 drive:drive 权限）
+export async function deleteDoc(ref) {
+  if (!feishuConfigured()) {
+    const err = new Error('飞书未配置（server/.env 设置 FEISHU_APP_ID/FEISHU_APP_SECRET，应用需开通 drive:drive 权限）');
+    err.code = 'NOT_CONFIGURED';
+    throw err;
+  }
+  const parsed = parseDocRef(ref);
+  if (!parsed) throw Object.assign(new Error('无法解析文档引用（支持 /docx/、/wiki/ 链接或裸 token）'), { code: 'BAD_REF' });
+  const token = await getToken();
+  let docId = parsed.token;
+  if (parsed.kind === 'wiki') {
+    const node = await apiGet(`/wiki/v2/spaces/get_node?token=${parsed.token}`, token);
+    if (node.obj_type !== 'docx') throw new Error(`wiki 节点类型 ${node.obj_type} 暂不支持删除（当前仅 docx）`);
+    docId = node.obj_token;
+  }
+  await apiReq('DELETE', `/drive/v1/files/${docId}?type=docx`, token);
+  return { document_id: docId, deleted: true };
 }

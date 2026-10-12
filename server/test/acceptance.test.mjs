@@ -895,7 +895,7 @@ test('J13 MCP 管理壳：CRUD 校验 + which 探测（不执行目标命令）'
 });
 
 test('J14 飞书读入：引用解析纯函数 + 降级提示（RUN_FEISHU_LIVE=1 时加跑真实 API 自产自读闭环）', async () => {
-  const { parseDocRef, readDoc, exportDoc, feishuConfigured } = await import('../src/feishu.mjs');
+  const { parseDocRef, readDoc, exportDoc, deleteDoc, feishuConfigured } = await import('../src/feishu.mjs');
   assert.deepEqual(parseDocRef('https://xx.feishu.cn/docx/AbC123xyz'), { kind: 'docx', token: 'AbC123xyz' });
   assert.deepEqual(parseDocRef('https://xx.feishu.cn/wiki/WkNode1token'), { kind: 'wiki', token: 'WkNode1token' });
   assert.deepEqual(parseDocRef('BareDocToken1234'), { kind: 'docx', token: 'BareDocToken1234' });
@@ -915,6 +915,7 @@ test('J14 飞书读入：引用解析纯函数 + 降级提示（RUN_FEISHU_LIVE=
     assert.equal(d.title, 'readDoc 自测闭环（TEST-AUTO）');
     assert.ok(d.markdown.includes('# 闭环标题') && d.markdown.includes('正文关键句 42'), '块结构还原');
     assert.ok(d.blocks >= 3, '块数合理');
+    assert.deepEqual(await deleteDoc(w.url), { document_id: w.document_id, deleted: true }, '清理自产文档（移入回收站）');
   } finally {
     process.env.FEISHU_APP_ID = '';
     process.env.FEISHU_APP_SECRET = '';
