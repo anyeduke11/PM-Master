@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="560" viewBox="0 0 1200 560"
+     role="img" aria-labelledby="title desc">
+  <title id="title">PM-Master 成长飞轮</title>
+  <desc id="desc">六节点闭环：冷启动评估定位等级 → 项目工作台产生真实工作数据（EVM 周报、容差预警）→ 演练场 GROW 教练会话（E 评定）→ 成长记录沉淀行为证据 → 成长路径月度三维聚合 min(K,C,E) 得出差距与任务 → 强化营 SM-2 复习与情景题训练 → 回到演练场，循环往复。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#38bdf8"/>
+    </marker>
+    <linearGradient id="cardFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1826"/>
+      <stop offset="1" stop-color="#0a1220"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="560" rx="26" fill="#06090f"/>
+  <rect x="0.5" y="0.5" width="1199" height="559" rx="25.5" fill="none" stroke="#16283d" stroke-width="1"/>
+
+  <text x="600" y="58" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="30" font-weight="700" fill="#eaf4ff">成长飞轮：真实工作 → 证据 → 等级 → 训练</text>
+  <text x="600" y="88" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#5b7a99">规则交代码 · 判断交 AI · 决策交用户</text>
+
+  <!-- ring layout: 6 cards around center (600, 330) -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+
+    <!-- 1 冷启动（top center） -->
+    <g id="n1" transform="translate(470 118)">
+      <rect width="260" height="88" rx="12" fill="url(#cardFill)" stroke="#274b6d" stroke-width="1.4"/>
+      <text x="24" y="34" font-size="21" font-weight="600" fill="#cfe6fb">① 冷启动评估</text>
+      <text x="24" y="62" font-size="17" fill="#7f9ab5">简历导入 → 情景题 → 定位 L1–L5</text>
+    </g>
+
+    <!-- 2 项目工作台（right upper） -->
+    <g id="n2" transform="translate(852 216)">
+      <rect width="284" height="88" rx="12" fill="url(#cardFill)" stroke="#274b6d" stroke-width="1.4"/>
+      <text x="24" y="34" font-size="21" font-weight="600" fill="#cfe6fb">② 项目工作台（实战）</text>
+      <text x="24" y="62" font-size="17" fill="#7f9ab5">EVM 周报 · 容差引擎 · 风险/干系人</text>
+    </g>
+
+    <!-- 3 演练场（right lower） -->
+    <g id="n3" transform="translate(770 430)">
+      <rect width="300" height="88" rx="12" fill="url(#cardFill)" stroke="#274b6d" stroke-width="1.4"/>
+      <text x="24" y="34" font-size="21" font-weight="600" fill="#cfe6fb">③ 演练场 · GROW 教练会话</text>
+      <text x="24" y="62" font-size="17" fill="#7f9ab5">超容差预警 → 例外教练 → E 评定</text>
+    </g>
+
+    <!-- 4 成长记录（left lower，镜像右下） -->
+    <g id="n4" transform="translate(130 430)">
+      <rect width="300" height="88" rx="12" fill="url(#cardFill)" stroke="#274b6d" stroke-width="1.4"/>
+      <text x="24" y="34" font-size="21" font-weight="600" fill="#cfe6fb">④ 成长记录（证据银行）</text>
+      <text x="24" y="62" font-size="17" fill="#7f9ab5">行为证据 + 机读分自动归档</text>
+    </g>
+
+    <!-- 5 成长路径（left upper） -->
+    <g id="n5" transform="translate(64 216)">
+      <rect width="284" height="88" rx="12" fill="url(#cardFill)" stroke="#274b6d" stroke-width="1.4"/>
+      <text x="24" y="34" font-size="21" font-weight="600" fill="#cfe6fb">⑤ 成长路径（F3 重算）</text>
+      <text x="24" y="62" font-size="17" fill="#7f9ab5">三维聚合 min(K,C,E) → 差距+任务</text>
+    </g>
+
+    <!-- center badge -->
+    <g id="center" transform="translate(470 300)">
+      <rect width="260" height="84" rx="14" fill="#0b1a2c" stroke="#38bdf8" stroke-width="1.6"/>
+      <text x="130" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#38bdf8">AI 教练助手</text>
+      <text x="130" y="64" text-anchor="middle" font-size="16" fill="#7f9ab5">教练面 + 助手面 · 统一角色</text>
+    </g>
+  </g>
+
+  <!-- flow arrows: 1→2→3→4→5→1 ; 3↔1 skip; 5→3 via bottom label -->
+  <g fill="none" stroke="#38bdf8" stroke-width="1.8" opacity="0.85">
+    <path d="M734 160 C 800 170, 845 195, 872 216" marker-end="url(#arrow)"/>
+    <path d="M994 306 C 994 360, 960 405, 928 432" marker-end="url(#arrow)"/>
+    <path d="M770 490 L430 490" marker-end="url(#arrow)"/>
+    <path d="M272 430 C 240 402, 208 358, 206 306" marker-end="url(#arrow)"/>
+    <path d="M206 216 C 212 194, 258 168, 466 158" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- training return arc 5→3 -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#7f9ab5">
+    <text x="600" y="540" text-anchor="middle">差距 → 强化营(SM-2 复习 + 情景题) → 回到演练场再练</text>
+  </g>
+</svg>
