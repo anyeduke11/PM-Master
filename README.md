@@ -154,6 +154,10 @@ pm-master/
 | [AGENTS.md](./AGENTS.md) | AI 编码助手协作规则（硬约束 / 常用命令 / 已知坑） |
 | [demo/index.html](./demo/index.html) | 高保真可交互原型（设计语言参考） |
 
+## License
+
+本项目基于 [Apache License 2.0](./LICENSE) 开源。
+
 ---
 
 <p align="center">
