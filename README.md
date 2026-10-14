@@ -70,7 +70,7 @@ cd ../web && npm install && npm run dev
 
 ```ini
 AGENT_PROVIDER=openai            # mock | openai（OpenAI 兼容）| pi
-OPENAI_BASE_URL=...              # 如 https://token.sensenova.cn/v1
+OPENAI_BASE_URL=...              # 任意 OpenAI 兼容端点
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=...                 # 强模型池：教练/周报/评定
 OPENAI_MODEL_FAST=...            # 快模型池：出题/判分（RPM 宽松，429 分池退避）

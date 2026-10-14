@@ -1,7 +1,7 @@
 # PM-Master 组件规范与交互文档（UI Design Spec）
 
-> 适用范围：`web/` 全部前端界面。本文档是 [index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html) 内全局样式的**配套说明**——令牌与规则的唯一权威来源始终是 index.html 的 `<style>` 块，本文件对其做结构化释义与使用约定，不引入第二套真源。
-> 版本：v1.3（2026-10-13，随 v5.18.0 角色统一更新）｜上游契约：[PRD.md](file:///Users/duke/Documents/经营分析看板/pm-master/PRD.md) §8 页面交互设计 · §15 AI 教练助手（统一角色）｜技术约定：[AGENTS.md](file:///Users/duke/Documents/经营分析看板/pm-master/AGENTS.md) 前端约定
+> 适用范围：`web/` 全部前端界面。本文档是 [index.html](../web/index.html) 内全局样式的**配套说明**——令牌与规则的唯一权威来源始终是 index.html 的 `<style>` 块，本文件对其做结构化释义与使用约定，不引入第二套真源。
+> 版本：v1.3（2026-10-13，随 v5.18.0 角色统一更新）｜上游契约：[PRD.md](../PRD.md) §8 页面交互设计 · §15 AI 教练助手（统一角色）｜技术约定：[AGENTS.md](../AGENTS.md) 前端约定
 
 ---
 
@@ -103,10 +103,10 @@
 | 骨架 | `.skeleton` | 微光 `shimmer`；减少动效时隐藏 |
 | 折叠 | `details`/`summary` | 已全局样式化 |
 | 主题/偏好 | `.switch` | `--r-pill` 轨道；`::after` 为圆形滑块 |
-| 模态 | Modal（[ui.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/ui.jsx)） | 统一 `Modal`/`Field` 组件；替代 `prompt()` |
-| 轻提示 | toast（[ui.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/ui.jsx) `toast` + `ToastHost`） | 替代 `alert()`；`aria-live`；窄屏避让 FAB |
+| 模态 | Modal（[ui.jsx](../web/src/ui.jsx)） | 统一 `Modal`/`Field` 组件；替代 `prompt()` |
+| 轻提示 | toast（[ui.jsx](../web/src/ui.jsx) `toast` + `ToastHost`） | 替代 `alert()`；`aria-live`；窄屏避让 FAB |
 | 顶栏 | `header` / `.tabs` `.tab` / `.lv` | 窄屏换行、tab 横向滚动 |
-| 助手侧栏 | `.asst` / `.asst-fab` / `#msgs` / `.asst-plan` | **统一角色「AI 教练助手」的常驻入口**（见 [PRD.md](file:///Users/duke/Documents/经营分析看板/pm-master/PRD.md) §15.0；`/coach` 为其专注视图，非第二入口）；窄屏抽屉化（`transform` 滑入）；默认收缩，收缩态由 `.asst-fab` 唤起（无 `body.assistant-live` 不留白） |
+| 助手侧栏 | `.asst` / `.asst-fab` / `#msgs` / `.asst-plan` | **统一角色「AI 教练助手」的常驻入口**（见 [PRD.md](../PRD.md) §15.0；`/coach` 为其专注视图，非第二入口）；窄屏抽屉化（`transform` 滑入）；默认收缩，收缩态由 `.asst-fab` 唤起（无 `body.assistant-live` 不留白） |
 | 助手问题浮框 | `.asst-bubble`（`.x`） | 收缩态遇 `suggest`（容差预警/待复习）弹出：`--surface` 底 + `--accent` 左描边 + `--glow`；点击「让 AI 分析」展开侧栏并代入上下文；窄屏右上避让 `.asst-fab` |
 | 铃铛 | `.bell` / `.bell-panel` / `.bell-item-top` | 面板 `mousedown-outside` 关闭 |
 | 图标 | `@tabler/icons-react`（stroke 1.8 统一） | 禁用 emoji 当图标（跨浏览器渲染不一致） |
@@ -133,12 +133,12 @@
 
 工作台是**固定外壳 + 内部滚动**结构：`body{display:flex;flex-direction:column;height:100vh}` → `#root{flex:1;min-height:0;display:flex;flex-direction:column}` → `main{flex:1;min-height:0}` → `.page{height:100%}`。任何一环缺失 flex 上下文都会断链，导致 `main` 高度退化为内容高、`.split{height:100%}` 解析为 `auto`，整页沦为文档流（header/tabs 滚走、卡片无内部滚动）。
 
-- **React 挂载点 `#root` 必须保留 flex 高度链规则**（`flex:1; min-height:0; display:flex; flex-direction:column`），见 [index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L72)。这是「避免不断下拉」的最小必要条件。
+- **React 挂载点 `#root` 必须保留 flex 高度链规则**（`flex:1; min-height:0; display:flex; flex-direction:column`），见 [index.html](../web/index.html#L72)。这是「避免不断下拉」的最小必要条件。
 - 页内固定轨（如教练室 GROW 轨/输入栏）+ 自治滚动区（如 `#msgs`）依赖两个配合：滚动容器 `overflow:auto` **且** `min-height:0`（flex 子项默认 `min-height:auto` 会阻止收缩）；grid 容器需 `grid-template-rows:minmax(0,1fr)` 夹紧隐式行高。
 
 ### 6.1 分栏容器 `.split`
 
-所有「左侧导航/列表 + 右侧内容」型多列布局，容器加 `className="split"`，桌面列宽仍由内联 `grid-template-columns` 决定；**窄屏折叠交给统一断点**（`.split` 定义于 [index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L507-L514)）。
+所有「左侧导航/列表 + 右侧内容」型多列布局，容器加 `className="split"`，桌面列宽仍由内联 `grid-template-columns` 决定；**窄屏折叠交给统一断点**（`.split` 定义于 [index.html](../web/index.html#L507-L514)）。
 
 当前 8 处使用：RA(220/1fr) · Records(1fr/340) · Itto(290/1fr) · CoachRoom(230/1fr/270) · Growth(1.1fr/1fr) · Drill(1fr/300) · Workbench(210/1fr) · Settings(170/1fr)。
 **例外**：数据热力表（如 Workbench `auto 1fr 1fr 1fr`）为数据网格，**不加** `.split`。
@@ -164,7 +164,7 @@
 4. 是否引入新文案破折号「—」？（P6）
 5. 是否用了 `alert()`/`confirm()`/`prompt()`？（应改 toast/Modal）
 6. 提交/破坏性操作是否有 busy 态与二次确认？
-7. 新分栏布局是否加了 `.split`？新页面是否在 [App.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/App.jsx) 注册 tab？
+7. 新分栏布局是否加了 `.split`？新页面是否在 [App.jsx](../web/src/App.jsx) 注册 tab？
 8. 交互是否符合键盘可聚焦 + 尊重减少动效偏好？
 
 ---
