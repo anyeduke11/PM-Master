@@ -113,7 +113,7 @@ function scanCoachIdle() {
     type: 'coach_idle', severity: 'low',
     title: last ? '30 天内无教练会话' : '从未进行教练会话',
     detail: '教练会话是素质证据的主要来源，建议本周完成一次 GROW 训练',
-    action: { label: '进入教练室', route: 'tab:coach' },
+    action: { label: '进入演练场', route: 'tab:coach' },
   }];
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { IconPlus, IconRobot } from '@tabler/icons-react';
 import { Modal, Field } from './ui.jsx';
+import { api } from './api.js';
 
 // W4 风险评估专项：三场景（GB/T 20984 / 金融数据安全 / 个人信息保护）
 const SCN = {
@@ -31,56 +32,43 @@ export default function RA() {
   useEffect(() => { if (pid) loadDetail(pid); }, [pid]);
 
   async function load() {
-    const ps = await fetch('/api/ra/projects').then((r) => r.json());
+    const ps = await api.get('/api/v2/ra/projects');
     setProjects(ps);
     if (!pid && ps.length) setPid(ps[0].id);
   }
   async function loadDetail(id) {
-    setDetail(await fetch(`/api/ra/projects/${id}`).then((r) => r.json()));
+    setDetail(await api.get(`/api/v2/ra/projects/${id}`));
     setReport(null); setExtractOut(null);
   }
   // 新建评估项目（Modal 表单提交；payload 与原 prompt 版一致 {name, scenario, org}）
   async function create() {
     const name = newProj.name.trim(); if (!name) return;
-    const p = await fetch('/api/ra/projects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, scenario: newProj.scenario, org: newProj.org }),
-    }).then((r) => r.json());
+    const p = await api.post('/api/v2/ra/projects', { name, scenario: newProj.scenario, org: newProj.org });
     setShowNew(false); setNewProj({ name: '', scenario: 'fin_data', org: '' });
     await load(); setPid(p.id);
   }
   async function setPhase(ph) {
-    await fetch(`/api/ra/projects/${pid}/phase`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phase: ph }),
-    });
+    await api.post(`/api/v2/ra/projects/${pid}/phase`, { phase: ph });
     loadDetail(pid); load();
   }
   async function addAsset() {
     if (!newAsset.name.trim()) return;
-    await fetch(`/api/ra/projects/${pid}/assets`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newAsset, data_level: newAsset.data_level || null }),
-    });
+    await api.post(`/api/v2/ra/projects/${pid}/assets`, { ...newAsset, data_level: newAsset.data_level || null });
     setNewAsset({ ...newAsset, name: '' }); loadDetail(pid); load();
   }
   async function addFinding() {
     if (!newFinding.threat_desc.trim()) return;
-    await fetch(`/api/ra/projects/${pid}/findings`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newFinding, asset_id: newFinding.asset_id ? Number(newFinding.asset_id) : null }),
-    });
+    await api.post(`/api/v2/ra/projects/${pid}/findings`, { ...newFinding, asset_id: newFinding.asset_id ? Number(newFinding.asset_id) : null });
     setNewFinding({ ...newFinding, threat_desc: '', vuln_desc: '', measures_existing: '' }); loadDetail(pid); load();
   }
   async function treat(id, patch) {
-    await fetch(`/api/ra/findings/${id}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
-    });
+    await api.post(`/api/v2/ra/findings/${id}`, patch);
     loadDetail(pid); load();
   }
   async function doExtract() {
     if (extractText.trim().length < 20) return;
     setBusy(true);
-    const out = await fetch(`/api/ra/projects/${pid}/extract`, {
+    const out = await fetch(`/api/v2/ra/projects/${pid}/extract`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: extractText }),
     }).then((r) => r.json());
     setExtractOut(out.statusCode ? { error: out.message } : out); setBusy(false);
@@ -89,23 +77,17 @@ export default function RA() {
     // 人工确认后批量入库：先资产（建名字→id 映射），再风险项
     const map = {};
     for (const a of extractOut.assets ?? []) {
-      const created = await fetch(`/api/ra/projects/${pid}/assets`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: a.name, type: a.type, confidentiality: a.confidentiality, integrity: a.integrity, availability: a.availability, data_level: a.data_level ?? null }),
-      }).then((r) => r.json());
+      const created = await api.post(`/api/v2/ra/projects/${pid}/assets`, { name: a.name, type: a.type, confidentiality: a.confidentiality, integrity: a.integrity, availability: a.availability, data_level: a.data_level ?? null });
       map[a.name] = created.id;
     }
     for (const f of extractOut.findings ?? []) {
-      await fetch(`/api/ra/projects/${pid}/findings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asset_id: map[f.asset_name] ?? null, threat_desc: f.threat_desc, threat_freq: f.threat_freq, vuln_desc: f.vuln_desc, vuln_sev: f.vuln_sev, measures_existing: f.measures_existing, extra: f.lawful ? { lawful: f.lawful, necessary: f.necessary, consent: f.consent } : (f.lifecycle ? { lifecycle: f.lifecycle } : null) }),
-      }).then((r) => r.json());
+      await api.post(`/api/v2/ra/projects/${pid}/findings`, { asset_id: map[f.asset_name] ?? null, threat_desc: f.threat_desc, threat_freq: f.threat_freq, vuln_desc: f.vuln_desc, vuln_sev: f.vuln_sev, measures_existing: f.measures_existing, extra: f.lawful ? { lawful: f.lawful, necessary: f.necessary, consent: f.consent } : (f.lifecycle ? { lifecycle: f.lifecycle } : null) });
     }
     setExtractOut(null); setExtractText(''); loadDetail(pid); load();
   }
   async function genReport() {
     setBusy(true);
-    const out = await fetch(`/api/ra/projects/${pid}/report`, { method: 'POST' }).then((r) => r.json());
+    const out = await fetch(`/api/v2/ra/projects/${pid}/report`, { method: 'POST' }).then((r) => r.json());
     setReport(out.markdown ?? `生成失败：${out.message ?? ''}`);
     setBusy(false);
   }
@@ -118,7 +100,7 @@ export default function RA() {
 
   const p = detail?.project;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14, height: '100%' }}>
+    <div className="split" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14, height: '100%' }}>
       <div className="card" style={{ overflow: 'auto' }}>
         <h3>评估项目 <button className="mini" onClick={() => setShowNew(true)} title="新建评估项目"><IconPlus size={14} stroke={2} /></button></h3>
         {projects.map((x) => (
@@ -239,7 +221,7 @@ export default function RA() {
               <tbody>
                 {detail.findings.map((f) => (
                   <tr key={f.id}>
-                    <td>{f.asset_name ?? '—'}</td>
+                    <td>{f.asset_name ?? '-'}</td>
                     <td>{f.threat_desc} × {f.vuln_desc ?? '-'}</td>
                     <td className="mono">{f.possibility}×{f.impact}</td>
                     <td className="mono"><b>{f.risk_value}</b></td>
@@ -260,9 +242,9 @@ export default function RA() {
               <button className="mini pri" style={{ marginLeft: 8 }} disabled={busy || !detail.findings.length} onClick={genReport}>{busy ? '生成中…' : 'AI 生成报告'}</button>
               {report && <button className="mini" style={{ marginLeft: 6 }} onClick={exportReport}>导出 .md</button>}
             </h3>
-            {report && <pre style={{ background: 'var(--paper)', padding: 12, borderRadius: 8 }}>{report}</pre>}
+            {report && <pre style={{ background: 'var(--paper)', padding: 12, borderRadius: 'var(--r-md)' }}>{report}</pre>}
             <small style={{ color: 'var(--ink3)', display: 'block', marginTop: 8 }}>
-              复盘：评估收尾后到教练室走「经验教训萃取」场景，产物自动归档成长记录（知识贡献证据）。
+              复盘：评估收尾后到演练场走「经验教训萃取」场景，产物自动归档成长记录（知识贡献证据）。
             </small>
           </div>
         )}

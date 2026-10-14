@@ -1,8 +1,8 @@
 # PM-Master · AI Native 项目经理成长工作台
 
-以 **GB/T 41831-2022《项目管理专业人员能力评价要求》** 为成长坐标的等级无关（L1-L5 全程）单用户系统：真实项目工作为训练场、AI 教练（GROW + 思维模型）全程陪伴。**干活即练级。**
+以 **GB/T 41831-2022《项目管理专业人员能力评价要求》** 为成长坐标的等级无关（L1-L5 全程）单用户系统：真实项目工作为训练场、**AI 教练助手**（教练角色即 AI 助手，统一角色见 [PRD.md](./PRD.md) §15）全程陪伴，助力用户持续提升项目管理能力。**干活即练级。**
 
-> 完整设计见 [PRD.md](./PRD.md)（含四体系整合：CSPM 骨架 × PMP 方法 × PRINCE2 治理 × thinking-coach 训练）
+> 当前基线：**v0.1.0**（2026-10-13 定基，此前内部迭代序号收录于 PRD 变更记录）。完整设计见 [PRD.md](./PRD.md)（含四体系整合：CSPM 骨架 × PMP 方法 × PRINCE2 治理 × thinking-coach 训练）
 
 ## 快速启动
 
@@ -43,7 +43,7 @@ npm install
 npm run dev            # → http://localhost:8736
 ```
 
-打开 **http://localhost:8736**，六个页面：教练室 / 项目工作台 / 成长记录 / 强化营 / 成长路径 / 骨架·SSE。
+打开 **http://localhost:8736**，八个页面：演练场 / 项目工作台 / 风险评估 / 成长记录 / 强化营 / 知识库 / 成长路径 / 设置。
 
 ## 密钥管理（server/scripts/secrets.sh）
 
@@ -76,21 +76,24 @@ FEISHU_APP_SECRET=...
 
 ```
 pm-master/
-├── PRD.md                  # 产品需求文档（v3.x，设计+落地全程记录）
+├── PRD.md                  # 产品需求文档（v0.1.0 基线，设计+落地全程记录于文末变更记录）
 ├── standard/               # 系统宪法：评级唯一依据
 │   ├── gbt41831.yaml       #   国标结构化（五级×17领域深度矩阵×29指标×经验硬指标）
 │   ├── pmp-prince2-map.yaml#   17领域×PMP/PRINCE2 映射 + 度量→例外管线
 │   └── indicator-training-map.yaml  # 29指标×训练来源 + 教练场景 + 组合解锁
-├── server/                 # Fastify + node:sqlite（17表）+ agent适配层
-│   ├── src/index.mjs       #   路由总入口
-│   ├── src/agent.mjs       #   LLM 适配（mock/openai 双 provider，JSON模式，429退避）
+├── docs/                   # 设计规范：ACCEPTANCE-SPEC（验收）/ MEMORY-ARCHITECTURE（记忆）/ UI-DESIGN-SPEC（组件）/ 01-03（v6.0 规划系列）
+│   └── archive/            #   历史阶段文档归档（PRD-R2、R2-R6 开发方案等，本地归档不入 git）
+├── server/                 # Fastify + node:sqlite（35 表）+ agent 适配层
+│   ├── src/index.mjs       #   装配根（路由注册见 routes/）
+│   ├── src/routes/         #   24 个 *.routes.mjs 按域 + repo/×6（SQL 归仓）+ scheduler.mjs（同级）
+│   ├── src/agent.mjs       #   LLM 适配（mock/openai 双 provider，JSON 模式，强/快双模型分池，429 退避）
 │   ├── src/coach.mjs       #   GROW 状态机（规则层推进+LLM内容分离）
 │   ├── src/workbench.mjs   #   EVM+容差引擎（纯代码）+周报/风险/二阶推演
 │   ├── src/drill.mjs       #   SM-2 间隔重复 + 情景题（深度随档案等级）
 │   ├── src/growth.mjs      #   F3 三维聚合+min合成+差距+任务
-│   ├── src/feishu.mjs      #   飞书写回（token缓存→建docx→分批写块）
+│   ├── src/feishu.mjs      #   飞书读写（readDoc/deleteDoc/周报云文档写回）
 │   └── scripts/            #   secrets.sh（Keychain加密）/ with-env.sh（启动包装）
-├── web/                    # Vite + React（6页面）
+├── web/                    # Vite + React（8 tab；router.js hash 深链 + api.js 集中门面）
 ├── demo/index.html         # 高保真可交互原型（单文件，设计语言参考）
 └── GB-T41831-2022_ocr_raw.txt  # 国标原文 OCR（结构化依据）
 ```
@@ -109,22 +112,26 @@ pm-master/
                       ▼
   每月F3重算：三维聚合(K卡片覆盖/C行为证据/E硬指标)→min合成→差距→grow-planner任务
                       ▼
-  强化营弱项训练(SM-2+情景题深度随级) ──▶ 回到教练室
+  强化营弱项训练(SM-2+情景题深度随级) ──▶ 回到演练场
 ```
 
 ## API 一览（:8735）
 
 | 域 | 端点 |
 |---|---|
-| 标准 | `GET /api/standard/:name` · `GET /api/requirements/:level?track=` · `POST /api/gap-analysis` |
-| 档案 | `GET/PUT /api/profile`（current_level 切换=全模块自适应） |
-| 教练 | `GET /api/coach/scenarios` · `POST /api/coach/sessions` · `POST .../messages` · `POST .../control{skip|back|fast|status}` · `POST .../close`（E评定+归档） |
-| 工作台 | `GET/POST /api/projects` · `POST .../weekly{pv,ev,ac}` · `POST .../tolerance-check` · risks(+second-order/to-issue) · stakeholders · meetings(+actions) |
-| 预警 | `GET /api/alerts` · `POST /api/alerts/:id/ack` |
-| 成长记录 | `GET/POST /api/evidence` · `GET/PUT /api/experience-stats` |
-| 强化营 | `GET /api/drill/queue` · `POST /api/drill/cards/:id/review` · `POST /api/drill/scenario/:domain` → `POST .../answer` |
-| 成长路径 | `GET /api/growth/scores|history` · `POST /api/growth/recalc` · `GET/POST /api/tasks` |
-| 集成 | `GET /api/feishu/status` · `POST /api/feishu/export-doc` · `GET /api/scheduler` · `POST /api/scheduler/run/:job` |
+> 域前缀 `/api/v2/<domain>`（v2 命名迁移，2026-10-12）。探针 `/api/health` 保持稳定不动。
+
+| 域 | 端点 |
+|---|---|
+| 标准 | `GET /api/v2/standard/:name` · `GET /api/v2/standard/requirements/:level?track=` · `POST /api/v2/standard/gap-analysis` |
+| 档案 | `GET/PUT /api/v2/profile`（current_level 切换=全模块自适应） |
+| 教练 | `GET /api/v2/coach/scenarios` · `POST /api/v2/coach/sessions` · `POST .../messages` · `POST .../control{skip|back|fast|status}` · `POST .../close`（E评定+归档） |
+| 工作台 | `GET/POST /api/v2/projects` · `POST .../weekly{pv,ev,ac}` · `POST .../tolerance-check` · risks(+second-order/to-issue) · stakeholders · meetings(+actions) |
+| 预警 | `GET /api/v2/projects/alerts` · `POST /api/v2/projects/alerts/:id/ack` |
+| 成长记录 | `GET/POST /api/v2/records/evidence` · `GET/PUT /api/v2/records/experience-stats` |
+| 强化营 | `GET /api/v2/drill/queue` · `POST /api/v2/drill/cards/:id/review` · `POST /api/v2/drill/scenario/:domain` → `POST .../answer` |
+| 成长路径 | `GET /api/v2/growth/scores|history` · `POST /api/v2/growth/recalc` · `GET/POST /api/v2/drill/tasks` |
+| 集成 | `GET /api/v2/feishu/status` · `POST /api/v2/feishu/export-doc` · `GET /api/v2/scheduler` · `POST /api/v2/scheduler/run/:job` |
 
 ## 设计要点（为什么这样做）
 
@@ -135,7 +142,7 @@ pm-master/
 
 ## 演示脚本（首次体验 10 分钟）
 
-1. 教练室 → 资源谈判 → 走 GROW（fast 模式 3 层 Why）→ 结束并归档（看 E 评定）
+1. 演练场 → 资源谈判 → 走 GROW（fast 模式 3 层 Why）→ 结束并归档（看 E 评定）
 2. 工作台 → 生成周报（PV 420/EV 398/AC 458 触发 CPI 预警）→ 预警卡"进入例外教练"
 3. 强化营 → 复习 2 张卡 + 做一道情景题（深度随目标级）
 4. 成长路径 → F3 月度重算 → 看雷达/差距/自动生成的任务 → 去成长记录更新经验现值

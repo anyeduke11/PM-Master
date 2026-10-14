@@ -25,10 +25,19 @@ export function listScenarios() {
     };
   });
 }
+// 场景 → 记忆偏好分类（③ 记忆注入的场景感知排序；纯代码确定性映射，对齐 indicator-training-map 六场景，Rule 5/11）
+const SCENARIO_MEMORY_CATEGORIES = {
+  kickoff: ['goal', 'decision', 'risk', 'stakeholder'],
+  milestone: ['decision', 'risk', 'goal'],
+  handover: ['task', 'decision', 'preference'],
+  incentive: ['stakeholder', 'style', 'weakness'],
+  portfolio: ['goal', 'decision', 'risk'],
+  lessons: ['fact', 'goal', 'weakness'],
+};
 export function getScenario(id) {
   const s = listScenarios().find((x) => x.id === id);
   if (!s) throw notFound(`unknown scenario: ${id}`);
-  return s;
+  return { ...s, categories: SCENARIO_MEMORY_CATEGORIES[id] ?? [] };   // categories 供 coachChat 注入时读 scenario.categories
 }
 
 // ---------- 阶段定义（服务端确定性控制） ----------

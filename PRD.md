@@ -1,6 +1,7 @@
 # PM-Master · AI Native 项目经理成长工作台 — PRD
 
-> 版本：v5.16.2 | 状态：**R7.0 设置中心 P1-P5 全部交付（热切换/数据流入/工具频率/巡检/提示词/蒸馏/记忆/技能注册表/MCP 壳/飞书读入——readDoc 真实闭环已实测 + deleteDoc 云盘删除交付）**；R6.3 真实使用期继续（使用 2-4 周 → 反馈汇总 → R7 有据可依）
+> 版本：**v0.1.0**（2026-10-13 定基） | 状态：**功能完整、全测试绿**——统一角色已合流（教练面 GROW + 助手面意图执行，单一身份/入口），八页齐备（演练场/项目工作台/风险评估/成长记录/强化营/知识库/成长路径/设置），R7.0 设置中心 + R7.1 记忆复利闭环收口；基线验收 `test:acceptance` 75 tests（74/0/1 skip）+ `test:e2e` 12/12 + `vite build` 0
+> 版本纪律：**2026-10-13 重定基线**——此前内部迭代序号（v0.2 → v5.20.0）全部并入 v0.1.0 基线；完整演进史（含各版本范围、验证与诚实标注）**逐版保留于文末[变更记录](#附变更记录)**，本文头部不再链式复读。后续版本克制推进：仅对外可感知的里程碑升 minor/major，日常迭代记录于变更记录不占版本号
 > 依据：GB/T 41831-2022《项目管理专业人员能力评价要求》+ thinking-coach skill + pi.dev
 
 ---
@@ -9,7 +10,7 @@
 
 ### 1.1 定位
 
-**AI Native 项目经理成长工作台（PM 大师系统）**：以 GB/T 41831-2022 五级标准为成长坐标，以真实项目工作为训练场，AI 教练全程陪伴——服务项目管理专业人员**从第一级到第五级的完整成长周期**。PM 在这里干活、练思维、攒证据、长级。
+**AI Native 项目经理成长工作台（PM 大师系统）**：以 GB/T 41831-2022 五级标准为成长坐标，以真实项目工作为训练场，**AI 教练助手全程陪伴**（教练角色即 AI 助手，统一角色见 §15）——服务项目管理专业人员**从第一级到第五级的完整成长周期**。PM 在这里干活、练思维、攒证据、长级。
 
 一句话：**CSPM 定坐标，PMP 给方法，PRINCE2 给治理，thinking-coach 练内功。**
 
@@ -20,6 +21,8 @@
 - **设计铁律**：代码零等级硬编码；一切等级相关内容（出题深度/场景难度/工作台形态/证据清单）读 `gbt41831.yaml`，随档案等级自适应（见 6.5）
 
 ### 1.3 核心价值主张
+
+单一角色「**AI 教练助手**」（§15）对四类诉求的统一回应：
 
 | 用户诉求 | 系统回应 |
 |---|---|
@@ -52,6 +55,8 @@
 | D7 | 四体系整合 | CSPM 骨架 × PMP 方法 × PRINCE2 治理 × thinking-coach 训练 | v1.2 |
 | D8 | 等级模型 | **系统等级无关化**：任意用户 L1-L5 定位起步、模块按等级自适应；本人 L4 仅为首例档案（修正"L4→L5 工具"偏差） | v1.8 |
 | D9 | 命名 | "证据银行"更名"**成长记录**"（面向用户语义更贴成长历程；内部表/接口 id `evidence` 不变，仅显示层更名，全文档已同步） | v2.2 |
+| D10 | 角色统一 | **教练角色即 AI 助手**：系统内唯一 AI 角色命名为「**AI 教练助手**」，此前「AI 教练」（教练面/GROW）与「全局 AI 助手」（助手面/意图执行）统一为**同一角色的两个能力面**，单一入口 + 单一身份（画像/记忆/上下文共享）；v5.18.0 统一文档与设计，**v5.19.0 代码合流已落地**（三路 system 首行同源 `ROLE_LINE`，U1-U3 专项测试，§15.0 / ACCEPTANCE-SPEC §6.2） | v5.18.0 → v5.19.0 |
+| D11 | 页面命名 | **M2「教练室」更名「演练场」**：v5.19.2 角色短标签统一为「教练」后，页面名与角色名同词根易混淆；「演练场」表意 GROW 场景演练，与角色名彻底区隔。**仅显示层更名**——tab id `coach`、hash 深链 `#/coach`、组件 `CoachRoom.jsx`、API `/api/v2/coach/*`、DB 表 `coach_sessions` 全部不变（同 D9 先例）；历史阶段叙述/变更记录中的「教练室」保留为审计轨迹 | v5.20.0 |
 
 ---
 
@@ -60,8 +65,8 @@
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │  Web 前端（React + Vite + Tailwind + ECharts）                 │
-│  成长看板(雷达) · 教练室 · 项目工作台 · 强化营 · 成长记录        │
-│  ※ 每个页面都有教练侧边栏常驻（对话即操作）                       │
+│  成长看板(雷达) · 演练场 · 项目工作台 · 强化营 · 成长记录        │
+│  ※ 每页由 AI 教练助手常驻（统一对话入口，对话即操作）              │
 ├───────────────────────────────────────────────────────────────┤
 │  服务层（Node.js + TypeScript，REST + SSE 流式）                │
 │  ├─ 会话网关：agent 回复流式推送                                │
@@ -792,12 +797,12 @@ pm-master/
 
 ## 8. 页面交互设计
 
-AI 交互三模式：全局教练侧边栏（每页常驻）/ 页面内嵌生成对话 / 静默后台（会话结束自动抽取证据更新分数）。
+AI 教练助手（统一角色，§15）交互三模式：**常驻模式**（全局对话侧边栏/FAB/问题浮框，每页常驻、默认收缩）/ **专注模式**（`/coach` 演练场 GROW 深度演练视图）/ **静默模式**（后台定时/规则触发，会话结束自动抽取证据更新分数）。三者是**同一角色的不同呈现**，共享会话与上下文。
 
 | 页面 | 布局要点 |
 |---|---|
 | ① 成长看板 | 等级进度轨(档案 Ln→Ln+1，五级全显示)；雷达图(29指标/17领域双视图)；本周训练任务+差距Top5 |
-| ② 教练室 | 左场景选择；中GROW对话流+阶段进度条("R-2 第3/5个为什么")；右实时数据面板(模型/本次锻炼指标) |
+| ② 演练场（原「教练室」） | 左场景选择；中GROW对话流+阶段进度条("R-2 第3/5个为什么")；右实时数据面板(模型/本次锻炼指标) |
 | ③ 项目工作台 | 项目列表→详情四Tab(周报/风险/干系人/会议)；风险册行内AI操作 |
 | ④ 强化营 | 今日复习队列(遗忘曲线)；情景应用题卡片流；目标级专项模块(按档案等级加载) |
 | ⑤ 成长记录 | 类型筛选+L5经验进度条+"生成评审材料" |
@@ -852,7 +857,7 @@ AI 交互三模式：全局教练侧边栏（每页常驻）/ 页面内嵌生成
 | Skill | 触发 | 输入 | 输出 | 副作用 |
 |---|---|---|---|---|
 | level-assessor | /assess、冷启动 | 简历/项目清单/答题记录 | 雷达数据+差距报告 | competency_scores, assessments |
-| thinking-coach-pm | /coach、侧边栏 | 问题/场景选择 | 方案+话术+指标评定 | coach_sessions → scores |
+| thinking-coach-pm | /coach、统一对话入口 | 问题/场景选择 | 方案+话术+指标评定 | coach_sessions → scores |
 | project-copilot | /weekly /risk /meeting... | 项目上下文+对话 | 周报/风险册/纪要/汇报框架 | project_artifacts → evidence |
 | pm-knowledge | /drill、工作台联动 | 当前等级+复习队列 | 知识卡片+情景题+判分 | knowledge_cards 调度 |
 | grow-planner | /grow、每月定时 | 差距报告+日历 | 季度计划+周任务 | growth_plans, training_tasks |
@@ -902,10 +907,168 @@ AI 交互三模式：全局教练侧边栏（每页常驻）/ 页面内嵌生成
 
 ---
 
+## 15. AI 教练助手（统一角色）全维度能力设计
+
+> 本章为 v5.18.0「产品整体逻辑框架更新」的核心交付：确立**教练角色即 AI 助手**，把此前并存的「AI 教练」与「全局 AI 助手」统一为**单一角色**，并给出其**能力边界、交互流程、功能模块、响应标准**四维设计，支撑后续开发落地。
+> 范围声明：本版仅统一**文档与设计定义**；`coach.mjs` / `assistant.mjs` 的代码合流属后续独立迭代，不在本次范围。
+
+### 15.0 角色统一（本版核心变更）
+
+**定义：教练角色即 AI 助手。** 系统内只有一个 AI 角色——「**AI 教练助手**」（简称「教练」，UI 短标签沿用「教练」）。此前文档与实现中并存的「AI 教练」（M2 演练场，GROW 场景演练）与「全局 AI 助手」（侧边栏，意图执行）**不是两个角色**，而是**同一角色的两个能力面**：
+
+| 能力面 | 旧称 | 职责 | 现有实现（待合流） |
+|---|---|---|---|
+| **教练面**（演练·辅导） | AI 教练 | GROW 场景演练、指标评定、能力训练 | `coach.mjs` / `coachChat` |
+| **助手面**（执行·问答） | AI 助手 | 自然语言→意图→确定性执行、知识问答 | `assistant.mjs` / `assistantChat` |
+
+- **单一身份**：一个角色、一套画像、一份记忆、一条上下文注入链（`memoryBlock`）；两能力面共享人设（`persona.*`）与等级定制深度。
+- **唯一入口**：全局对话（默认收缩的侧边栏 + FAB + 问题浮框）为**唯一常驻交互入口**；`/coach` 演练场是同一会话在「GROW 深度演练」时的**专注视图**（视图自适应），**不是第二个入口**。
+- **统一裁决**：代号冲突（如"AI 教练" vs "全局 AI 助手"）一律以「AI 教练助手」为准；职责边界由 §15.3 定义，而非由页面归属定义。
+
+### 15.1 核心定位：全周期项目管理能力提升支持
+
+一句话：**AI 教练助手是用户全周期项目管理能力提升的单一陪伴者**——从冷启动评估、日常实战、专项训练到等级跃迁，提供「体系 + 知识 + 技能 + 工具 + 经验」五位一体的持续支持。
+
+「全周期」覆盖三个尺度：
+
+| 尺度 | 覆盖范围 |
+|---|---|
+| **等级周期** | L1→L5 全程（等级无关，按档案自适应，零等级硬编码） |
+| **业务周期** | 冷启动评估 → 日常实战 → 复盘沉淀 → 差距进阶 |
+| **交互周期** | 单次会话的 G→R→O→W→E→A 闭环 |
+
+### 15.2 五大储备（能力基座）
+
+教练要扮演「懂体系、有知识、能实操、会用工具、有经验」的角色，需具备五类储备——此即用户所要求的"完整的项目管理体系、专业知识、实操技能、工具矩阵与实战经验储备"：
+
+| # | 储备 | 内涵 | 数据来源 | 映射资产 |
+|---|---|---|---|---|
+| **R1** | 项目管理体系储备 | 四体系整合：CSPM 骨架 × PMP 方法 × PRINCE2 治理 × thinking-coach 训练 | `standard/*.yaml` | §4 三角坐标 |
+| **R2** | 专业知识储备 | 17 领域 × 3 档认知深度（know/apply/integrate）× 29 素质指标 | `gbt41831.yaml` + 知识卡片 | M1 / M4 |
+| **R3** | 实操技能储备 | 周报 / EVM / 风险册 / 干系人 / 纪要 / 汇报实操 | `workbench.mjs` | M3 |
+| **R4** | 工具矩阵储备 | 六大模块 + 6 Skills + 45 核心模型 + 记忆/画像 | 全系统 | M1-M6 / §11 |
+| **R5** | 实战经验储备 | 场景库（6 PM + 9 通用）、证据库、记忆复利、历史案例 | `indicator-training-map.yaml` + evidence + memories | M2 / M6 |
+
+> R1-R4 是**静态储备**（系统预置），R5 是**动态储备**（随用户使用持续积累，即记忆复利闭环的产物）。
+
+### 15.3 能力边界定义（能做 / 不做）
+
+**能做（In scope）**：
+
+| # | 能力 | 说明 |
+|---|---|---|
+| C1 | 能力评估与诊断 | 读 YAML 评级（零等级硬编码），出雷达 + 差距报告 |
+| C2 | 教练式引导 | GROW 演练 / 提问 / 复盘（引导而非代答） |
+| C3 | 知识讲解与陪练 | 按等级定制认知深度；知识卡 + 情景题 |
+| C4 | 实操执行代理 | 工作台产物生成（意图白名单 + 双确认） |
+| C5 | 训练规划 | 差距 → 季度计划 → 周任务 |
+| C6 | 记忆与画像维护 | 确定性代理（检索/晋升/衰减）+ LLM 蒸馏 |
+| C7 | 主动提醒 | 定时任务 + 规则引擎 + `suggest` 建议信号 |
+
+**不做（Out of scope）**：
+
+| # | 边界 | 理由 |
+|---|---|---|
+| N1 | 不替用户做最终决策 | **决策权始终归用户** |
+| N2 | 不伪造证据、不虚增能力分 | 评定必须引用会话依据（防自评膨胀） |
+| N3 | 不越权执行 | 危险操作双确认；白名单外一律澄清 |
+| N4 | 不发证 | 成长仪表盘 ≠ 认证机构 |
+| N5 | 不做考试模拟 | D5 决策：用户目标为持续强化 |
+| N6 | 不外泄敏感数据 | 密钥/本地数据不出本机 |
+
+**边界判定总原则**：**规则交代码，判断交 AI，决策交用户**（对齐 AGENTS.md 规则/判断分离）。
+
+### 15.4 交互流程设计
+
+**(a) 三模式（统一到单一入口）**：
+
+| 模式 | 载体 | 触发 |
+|---|---|---|
+| **常驻模式** | 侧边栏（默认收缩）/ FAB / 问题浮框 | 用户随时唤起 |
+| **专注模式** | `/coach` 演练场（GROW 深度演练视图） | 进入教练会话 |
+| **静默模式** | 后台（无 UI） | 定时/规则触发；会话结束钩子自动抽取证据 |
+
+三者是**同一角色的不同呈现**，共享会话与上下文——专注模式是常驻模式下发起教练会话后的展开视图。
+
+**(b) 统一会话路由（NL → 角色内部模式分发）**：
+
+```
+用户输入（文本 / 点击 / 定时事件）
+  → 意图解析（LLM 判定：assistantChat）
+  → 分发：
+     ├─ 执行类 → 白名单校验 → 计划预览 → 双确认（危险） → 确定性执行 → 结果回执
+     ├─ 教练类 → 启动/进入 GROW 会话 → G→R→O→W→E→A
+     ├─ 问答类 → 生成回答（按档案等级定制认知深度）
+     └─ 澄清类 → 反问补全（信息不足时）
+```
+
+**(c) GROW 会话生命周期**（沿用 §5.7.4 F2 状态机，此处为角色视角）：`IDLE → S0 场景识别 → G(3问) → R(5W1H+5Why，快速3层/标准5层) → O(策略库+二阶推演) → W(框架+话术+SMART计划) → E(指标评定，引用依据) → A(归档) → CLOSED`，任意步支持 `/skip /back /fast /restart`。
+
+**(d) 四条交互原则**：① **先预览再执行**（AI 先给方案）；② **危险操作二次确认**；③ **每次交互有明确落库**（可追溯/可回滚）；④ **失败 fail-loud**（不静默吞错）。
+
+### 15.5 功能模块规划
+
+统一角色对六大模块的能力供给（模块是被动页面，角色是主动驱动者，对齐 §3 AI Native 原则①）：
+
+| 模块 | 角色提供的支持 | 主导能力面 |
+|---|---|---|
+| M1 能力雷达 | 评估生成、差距解读 | 教练面 |
+| M2 思维教练 | GROW 演练、45 模型、评定回流 | **教练面（核心）** |
+| M3 项目工作台 | 周报/风险/干系人/纪要生成与执行 | 助手面 |
+| M4 强化营 | 知识卡、情景题、判分 | 助手面 + 教练面 |
+| M5 成长路径 | 计划生成、任务调整 | 助手面 |
+| M6 成长记录 | 证据抽取、评审材料生成 | 助手面 |
+
+- **Skill 契约**：6 个 Skill（§11）统一挂在同一角色下，按意图/场景**动态加载**（如教练会话只挂 thinking-coach-pm）。
+- **主动能力**（Agent 主动工作，对齐 §3 原则②）：周一 08:00 周报草稿；每日 09:00 复习队列；每月 01 日雷达重算 + 差距报告；容差预警 → 例外教练建议；会话结束 → 证据抽取。
+
+### 15.6 响应标准规范
+
+| 维度 | 标准 |
+|---|---|
+| **语气** | 教练式（`persona.style`：coach/direct/concise 可配）；称呼用户按 `persona.address` |
+| **深度** | 按档案等级定制：知识对齐该级认知要求（know/apply/integrate），建议对齐该级证据要求 |
+| **长度** | 上下文注入：画像 ≤500 字 + 记忆各 ≤300 字（分层配额 4/3/2）；回答克制、结构化 |
+| **依据** | 评定/诊断类回答**必须引用会话依据**，并点名指标（防主观、防幻觉） |
+| **诚实** | 不确定时明示；证据不足时给「取证任务」而非虚评（fail-loud） |
+| **时延** | 强模型（教练/评定/周报）与快模型（出题/判分/意图解析）分池；429 按池分级退避 |
+| **格式** | 模型输出结构化 JSON（供 UI 渲染）；展示层走 `.notice`/toast，禁裸 `alert()` |
+| **安全** | 不输出密钥；`.env`/`server/data/` 不外泄；决策权归用户 |
+| **可观测** | 每轮注入占比可观测（`contextPreview().injection`），防记忆喧宾夺主 |
+
+### 15.7 术语与旧定义对照（一致性校验用）
+
+| 旧表述（散落位置） | 新统一表述 |
+|---|---|
+| AI 教练（§1.1 定位 / §3 架构图 / §11 契约） | **AI 教练助手**（教练面） |
+| 全局 AI 助手 / 助手侧栏（§8 页面交互 / `assistantChat` 首行 system） | **AI 教练助手**（助手面） |
+| "全局教练侧边栏"（§8 三模式） | **常驻模式**（统一角色的常驻入口） |
+| `coachChat` 的「AI 教练」system 定义 | 与 `assistantChat` 的「全局 AI 助手」定义**合流**为同一角色人设（v5.19.0 已落地：`ROLE_LINE`） |
+| 「教练室」（M2 页面名 / tab 标签 / 跳转文案） | **演练场**（v5.20.0：页面名与角色短标签「教练」区隔；tab id `coach`、hash 深链 `#/coach`、组件 `CoachRoom.jsx`、API `/api/v2/coach/*` **均不变**；历史阶段叙述与变更记录中的「教练室」为审计轨迹，不改写） |
+
+---
+
 ## 附：变更记录
+
+> 阅读提示：下表为**完整演进史（审计轨迹）**，逐版保留不改写。2026-10-13 重定基线前的内部迭代序号（v0.2 → v5.20.0）与现行序号并存——正文与旧文档中出现的 v5.x 序号均指本表对应行，可完整回溯。
 
 | 版本 | 变更 |
 |---|---|
+| v0.1.0 | **版本重定基线 + 仓库整洁（2026-10-13，用户「整洁整个代码仓库，当前版本定位 v0.1.0（版本要克制），同步更新所有文档，做好变更时间和记录」驱动）**：① **序号重置**——v0.2→v5.20.0 全部内部迭代并入 v0.1.0 基线（各版条目保留本表可溯源）；`server/package.json` 与 `web/package.json` 本就标 0.1.0，文档与代码基线**首次一致**；确立版本纪律（克制推进：里程碑才占版本号，日常迭代只记本表）。② **近期交付盘点**（重定基线前的最后四个版本，均已验证入基线）：v5.19.0 统一角色 system 合流（`ROLE_LINE` 三路同源 + U1-U3 专项测试）/ v5.19.1 e2e 前端-测试脱节清偿（F3/F9-F11 修复）/ v5.19.2 UI 短标签统一「教练」/ v5.20.0 M2 更名「演练场」（D11）——基线验收：`test:acceptance` **75（74 pass/0 fail/1 skip）**、`test:e2e` **12/12**、`vite build` exit 0。③ **文档同步**——README 修正至现状（8 tab 页面清单、目录树补 `routes/×24`+`repo/×6`+`scheduler.mjs`+`docs/`、表数 17→**35**、PRD 基线注）；PRD 版本头瘦身（千字符链式承接史迁回本表，头部不再复读）；AGENTS.md 常用命令补验收/回归两条；ACCEPTANCE-SPEC 升 v1.3（re-baseline 指针）；docs/02-PRD-v6.0.md 头加基线指针（其自身 v6.0 命名保留为规划稿代号，采纳时并入基线推进）。④ **仓库整理**——历史阶段文档 10 份（PRD-R2 / R2 阶段总结 / R2.3 交付与验收 / R3-R6 开发方案 / 评审报告 html / 解耦蓝图 html）迁 `docs/archive/`；`.gitignore` 补 `!/docs/` 白名单——**修复真实缺口：AGENTS.md 引用的 docs/ACCEPTANCE-SPEC.md 等三份规范此前根本不在 git 跟踪内**（archive 目录保持排除，属本地归档）。**诚实标注**：① 归档文件此前均为 untracked（白名单排除），迁移不损 git 历史（本就无历史）；② `原型/`、`pm-master-demo.zip` 为 gitignore 的本地资产（7M 设计素材），未动；③ 正文内 v5.17-v5.20 引用（§12 里程碑、变更记录旧行、docs 各 spec 交付注）不逐处重写——本表即唯一映射真源，避免制造第二轮改写膨胀 |
+| v5.20.0 | **M2 页面更名「演练场」（D11；2026-10-13，用户「把 Tab 重命名为『演练场』以彻底区隔角色名」驱动；承前：v5.19.2 检查教练室文案时识别的「Tab 教练室 vs 短标签 教练」并存张力，用户裁决改名）**：**仅显示层更名**，页面名与 AI 角色短标签「教练」彻底区隔（「演练场」表意 GROW 场景演练，与其余模块名「强化营/知识库/成长路径」同级同风格）。① **前端 4 处**：[App.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/App.jsx#L22) `TABS` 标签 `教练室`→`演练场`（加更名注释）、[Assistant.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Assistant.jsx#L312) CTA 按钮「进入演练场」、[RA.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/RA.jsx#L247) 复盘引导文案、[index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L205) CSS 分区注释；② **后端用户可见 3 处**：[patrol.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/patrol.mjs#L116) 巡检行动 `label`（`route: 'tab:coach'` 不变）、[skills.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/skills.mjs#L12) 技能注册表 `label`「演练场对话」（`id: 'coach'` 不变，J12 断言读 id 非 label）、[growth.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/growth.mjs#L272) 月报建议文案；③ **测试 2 处**：[e2e.render.test.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/test/e2e.render.test.mjs) F1 tab 计数断言 + F5 `tab('演练场').click()`（`tab()` 按可见文本定位）；④ **文档**：PRD §3 架构图 / §8 三模式与页面表 / §15.0 定义与唯一入口条 / §15.4 模式表 改新名（页面表保留「原『教练室』」括注），**§15.7 对照表新增一行**登记 教练室→演练场 及不变项；**README** 现行 3 处同步。**不变（刻意）**：tab id `coach`、hash 深链 `#/coach`（旧书签仍有效）、组件 `CoachRoom.jsx`、API `/api/v2/coach/*`、DB 表 `coach_sessions`、CSS 类名、CoachRoom 页内「PM 教练场景」「开始 GROW 教练」等动宾用法（描述活动非页面名）；**历史叙述保留原名**——§12 里程碑 P1/P2 行（带完成日期的交付追溯）、PRD 变更记录旧行（含 v5.17.3 版本头承接语）、`R2-阶段总结.md`/`R6-开发方案.md` 阶段文档，均属审计轨迹不改写。**验证**：`node --check`（patrol/skills/growth/e2e）全过；`npx vite build` exit 0；`npm run test:acceptance` = **75 tests（74 pass / 0 fail / 1 skip）** 基线不变；`npm run test:e2e` = **12 tests（12 pass / 0 fail）**（F1/F5 随新 tab 名通过）。**诚实标注**：① 更名后「演练场」与角色名「教练」在 UI 上不再同词，但用户首次接触仍需理解「演练场 = 与教练做 GROW 演练」——INTRO 与场景标题仍含「教练」字样可承接，使用期观察是否需要页内引导句；② 未改 e2e F8 移动端 tab 遍历（未断言教练室文本）；③ 未实拍新 tab 名在 375px 窄屏的横滚表现（4 字与「项目工作台」同级长度，无溢出风险） |
+| v5.19.2 | **UI 短标签统一（§15.0「简称『教练』，UI 短标签沿用『教练』」落地；清偿 v5.19.0 诚实标注②遗留；2026-10-13，用户「先处理 UI 短标签的待裁决项」驱动；范围裁决＝只改面向用户的角色标签，纯文案改动）**：① **[Assistant.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Assistant.jsx) 3 处**：助手侧栏标题 `AI 助手`→`教练`、INTRO 首句 `AI 助手 · ⌘K…`→`教练 · ⌘K…`、FAB title `展开 AI 助手（⌘K）`→`展开教练（⌘K）`（文件头加 §15.0 依据注释一行）；② **[Settings.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Settings.jsx) 1 处**：I 区提示词库文案「显示在 AI 助手输入框上方」→「显示在教练输入框上方」。**刻意保留**（非角色标签）：能力面词汇（「助手面」「助手建议」「助手服务暂不可用」错误提示、§15.7 对照表「助手侧栏」指称）——两能力面命名合法，统一的是角色身份而非面词汇；历史版本注释（`R2.1 全局 AI 助手` 溯源行）与 CSS 分区注释；内部代码标识符（`Assistant.jsx`/`.asst-*` 类名/`assistantChat`/API 路径 `/assistant/*`——§15.0 未要求改代码名，改动牵连 333+ 处调用与测试，超出清偿范围）。**验证**：`npx vite build` exit 0；`npm run test:acceptance` = **75 tests（74 pass / 0 fail / 1 skip）** 基线不变；`npm run test:e2e` = **12 tests（12 pass / 0 fail）**（F9-F11 经选择器 `.asst`/`.asst-fab`/按钮文本「清空」定位，不依赖角色标签文案，改标签零冲击）。**诚实标注**：① 短标签「教练」与 M2 tab「教练室」并存——设计意图即同角色不同呈现（tab 为专注视图，侧栏为常驻入口），使用期若用户混淆再议措辞；② 未逐设备实拍新标签视觉（`vite build` + e2e DOM 断言覆盖渲染路径，纯文本替换无布局风险） |
+| v5.19.1 | **e2e 前端-测试脱节清偿（2026-10-13，用户「按推荐方案修复 e2e 用例，先点 FAB 唤起侧栏」驱动；清偿 v5.19.0 诚实标注①，范围裁决＝只改测试文件、零生产代码改动）**：① **F9-F11（侧栏默认收缩脱节）**：[e2e.render.test.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/test/e2e.render.test.mjs) 新增 `openAsst()` 助手——`.asst-fab` 存在（收缩态）则点击唤起、已展开则跳过，再 `waitFor('.asst')`；在 6 处调用点接线（F9 初始 + 刷新后 / F10 初始 + 刷新后 / F11 初始 + 刷新后，刷新点均保留 `header h1` React 挂载锚防 FAB 未渲染竞态）。语义对齐 v5.17.4 现行设计（默认收缩、FAB/⌘K 唤起），对话历史 mount 即载入与展开无关，刷新持久化断言不受影响。② **F3（em-dash 文案脱节）**：v5.17.2 em-dash 清零将知识库矩阵标题改为 `M0-M3`，用例仍等旧 em-dash `M0—M3`——对齐为连字符（`.mx-cell` 四档计数断言与现行实现本已兼容，系 h3 waitFor 卡死整例）。**验证**：`node --check` 过；`npm run test:e2e` = **12 tests（12 pass / 0 fail）**（此前 8/4，四项既有失败全清）；`npm run test:acceptance` = **75 tests（74 pass / 0 fail / 1 skip）** 基线不变。[docs/ACCEPTANCE-SPEC.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/ACCEPTANCE-SPEC.md) §6.2 诚实标注闭环（升 v1.2）。**诚实标注**：FAB 点击点未处理 `.asst-bubble` 浮框遮挡理论风险（隔离测试库无 suggest 数据，实测未触发）；UI 短标签「AI 助手」→「教练」统一仍属 v5.19.0 标注②遗留，不在本次范围 |
+| v5.19.0 | **统一角色代码合流（清偿 G4 已知待清偿项）（2026-10-13，用户「按照最新的PRD和Spec开始开发」驱动；范围裁决＝[docs/ACCEPTANCE-SPEC.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/ACCEPTANCE-SPEC.md) §6.2 三步：合流 → 回归 → 专项测试，不增扩）**：① **system 角色合流**（[server/src/agent.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/agent.mjs)）：新增统一人设常量 `ROLE_LINE`（「你是 PM-Master 工作台的『AI 教练助手』……教练面负责 GROW 演练与辅导，助手面负责执行与问答，两面共享同一画像、同一份记忆与同一条上下文注入链」），三路 system 首行收敛同源——`buildSystemPrompt`（chat 流式）、`COACH_RULES`（教练面，`const`→`export const`，第二行保留「不跳跃、不代答、不评判」等 GROW 教练原则）、`buildAssistantPrompt`（助手面新抽纯函数 `{pageContext, profile}`，自 `assistantChat` 内联提示词抽出：意图白名单提示 + 规则行 + `memoryBlock(recordHits:false)` + JSON schema 契约，第二行保留意图判定职责）；**`coachChat` 与 `assistantChat` 的 system 角色定义分裂消除**，能力面差异仅保留在后续行（通过标准「两路径 system 首行角色名一致」达成）。② **mock 路径联动**：`mockJSON` 助手意图分支匹配串「全局 AI 助手」→「操作意图」（助手面独有短语），保证无密钥（mock provider）下意图解析分支不挂。③ **专项测试 U1-U3**（[server/test/acceptance.test.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/test/acceptance.test.mjs)）：**U1** 三路 system 首行 = `ROLE_LINE` 且面差异保留；**U2** 单一身份——`memoryBlock`（画像+分层记忆）在 chat/助手两路径共同注入、`contextPreview().injection.block_chars` 与注入链同源一致、预览 `system_prompt` 首行反映统一人设（RC-3 代码口径）；**U3** 边界不可越权——`INTENTS` 白名单 11 意图无决策/发证/考试/授权类（type 仅 write/read/action）、唯一危险操作 `risk.delete` 标 `danger:true`（双确认）、白名单外决策请求「选 A 还是 B」回落 `kind:'chat'`（N1 决策权归用户；CB-3/CB-5 获得代码级映射）。④ **文档同步**：ACCEPTANCE-SPEC v1.0→**v1.1**（RC-3/RC 组判定/CB-3/§6.2 升 ✅，G4 标注清偿）；本 PRD 版本头与 D10 同步。**验证**：`node --check`（agent.mjs / acceptance.test.mjs）全过；`npm run test:acceptance` = **75 tests（74 pass / 0 fail / 1 skip）**（基线 72/71/0/1，+3 专项测试，无回归）。**诚实标注**：① `npm run test:e2e` 当前 **8 pass / 4 fail（F3/F9/F10/F11）**——**隔离验证**：`git stash` 还原 agent.mjs 至 HEAD 重跑，失败完全一致，**与本次合流无关**；根因为既有前端-测试脱节：F9-F11 假设「侧栏默认展开」（`waitFor('.asst')`），而 [Assistant.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Assistant.jsx) 自 v5.17.4 默认 `open=false`（收缩态，FAB/⌘K 唤起）；F3 为知识库矩阵渲染超时，同属既有；该欠账另行清偿（改用例先点 FAB，或裁决恢复默认展开）。② 前端 UI 短标签（Assistant.jsx 侧栏标题「AI 助手」）尚未按 §15.7 约定统一为「教练」——本次范围为 system 角色定义合流，UI 标签不在内。③ 除首行人设变化外 `coachChat`/`assistantChat` 运行行为等价（意图白名单、注入链、双确认逻辑未动）；真实 LLM 未复测（合流仅改提示词组装，mock 路径覆盖意图分支） |
+| v5.18.0 | **产品整体逻辑框架更新：教练角色即 AI 助手（统一角色 + 全维度能力设计）（2026-10-13，用户「执行产品整体逻辑框架更新，核心定义为：教练角色即AI助手……」驱动；四裁决=并入 PRD 新章节 + 验收Spec 独立 / 仅文档与设计 / 全量对齐 / 统一角色 + 统一 UI 入口）**：确立**教练角色即 AI 助手**这一核心定义，把此前并存的「AI 教练」（M2 教练室/GROW，`coach.mjs`·`coachChat`）与「全局 AI 助手」（侧边栏/意图执行，`assistant.mjs`·`assistantChat`）**统一为单一角色「AI 教练助手」**——不是两个角色，而是同一角色的**教练面**（演练·辅导）与**助手面**（执行·问答）两个能力面，共享单一身份（画像/记忆/上下文注入链）与单一入口。① **PRD 新增 §15「AI 教练助手（统一角色）全维度能力设计」**：15.0 角色统一（单一身份/唯一入口/统一裁决）；15.1 核心定位（**全周期项目管理能力提升支持**，覆盖等级周期/业务周期/交互周期三尺度）；15.2 **五大储备**（R1 体系 / R2 知识 / R3 技能 / R4 工具矩阵 / R5 实战经验，对应"完整项目管理体系、专业知识、实操技能、工具矩阵与实战经验储备"）；15.3 **能力边界**（能做 C1-C7 / 不做 N1-N6，总原则"规则交代码、判断交 AI、决策交用户"）；15.4 **交互流程**（三模式统一到单一入口 + 统一会话路由 + GROW 生命周期 + 四条交互原则）；15.5 **功能模块规划**（统一角色对六大模块的能力供给 + Skill 动态加载 + 主动能力）；15.6 **响应标准规范**（语气/深度/长度/依据/诚实/时延/格式/安全/可观测九维）；15.7 术语与旧定义对照表。② **PRD 现有段落全量对齐**：§1.1 定位「AI 教练」→「**AI 教练助手**」；§1.3 价值主张加统一角色引导句；§2 决策日志新增 **D10 角色统一**；§3 架构图「教练侧边栏常驻」→「每页由 AI 教练助手常驻（统一对话入口）」；§8 页面交互「AI 交互三模式：全局教练侧边栏…」→「常驻/专注/静默三模式（同一角色的不同呈现）」；§11 Skill 契约 thinking-coach-pm 触发「侧边栏」→「统一对话入口」。③ **新建 [docs/ACCEPTANCE-SPEC.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/ACCEPTANCE-SPEC.md)**：教练/AI 助手功能的**可验证验收标准 Spec**（角色一致性/能力边界/交互流程/功能模块/响应标准五组，逐条可测）。④ **外围文档对齐**：[README.md](file:///Users/duke/Documents/经营分析看板/pm-master/README.md)、[AGENTS.md](file:///Users/duke/Documents/经营分析看板/pm-master/AGENTS.md) 角色定位段统一为「AI 教练助手」；[docs/MEMORY-ARCHITECTURE.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/MEMORY-ARCHITECTURE.md)（v1.4→v1.5）「AI 助手」加统一角色锚点；[docs/UI-DESIGN-SPEC.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/UI-DESIGN-SPEC.md)（v1.2→v1.3）助手侧栏/浮框标注属统一角色。**范围声明**：本次为**纯文档与设计**，未改动任何 `.mjs`/`.jsx` 代码——`coach.mjs`/`assistant.mjs` 的引擎合流与统一入口的代码落地留待后续独立迭代（`coachChat` 与 `assistantChat` 的 system 角色定义分裂仍在代码中存在，属**已知待清偿项**）。**验证**：文档级一致性自检（grep 残留分裂提法 + 交叉引用校验），无代码变更故不涉测试基线 |
+| v5.17.7 | **R7.1 记忆复利闭环收口（P3 记忆注入与画像生成：③ 检索注入补齐 + ⑤ 画像蒸馏纳入分层记忆）（2026-10-13，用户「推进 P3 记忆注入与画像生成」驱动；范围裁决=两者都做 / 教练与助手都接入）**：承接 v5.17.6 P2/P4，**补齐复利闭环 ③ 检索注入与 ⑤ 蒸馏回灌两环**。① **③ 记忆注入组装收敛（DRY）**：[memory.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/memory.mjs) 抽取 `memoryBlock({profile, pageContext, scenario, recordHits})`——**纯代码零 LLM**，组装「【用户画像】`profile.summary`（≤500 字）+【工作记忆】`retrieveMemories` 场景/域感知分层结果（各 ≤300 字，带 `用户/项目#pid·长期/短期` 标签）」；`recordHits=true` 时调用 `markInjected`+`runMemoryMaintenance`（**维护失败 try/catch 不阻断对话**）并受 `persona.memory_on` 总开关门控。② **三路复用（此前仅 chat 流式注入）**：[agent.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/agent.mjs) `buildSystemPrompt` 改调 `memoryBlock`（chat 流式 `recordHits:true`）；`coachChat` 两条分支（W-OUT 无输出 / 正常）均注入 `memoryBlock({profile, scenario, recordHits:true})`；`assistantChat` 注入 `memoryBlock({profile, pageContext, recordHits:false})`（**助手为高频意图解析路径，故意不记 hits，避免命中通胀与过快晋升**）；**`ratingChat` 刻意不注入记忆**（E 能力评定须以会话内证据为准，引入长期记忆会污染评定口径——记忆只用于辅导不用于打分，加注释留痕）。③ **场景→分类偏好（确定性映射）**：[coach.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/coach.mjs) 新增 `SCENARIO_MEMORY_CATEGORIES`（kickoff/milestone/handover/incentive/portfolio/lessons 六场景 → 记忆 `category` 清单，对齐 indicator-training-map），`getScenario` 返回体补 `categories`，供 `coachChat` 注入时读 `scenario.categories` 做场景感知前置排序。④ **⑤ 画像蒸馏纳入分层长期记忆**：[memory.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/memory.mjs) 新增 `profileMemoryDigest({limit})`（纯函数，取 `scope='user' AND horizon='long'` 按 `level ASC, hits DESC, id DESC` 限额，只回 `{content≤120, level}`）；`distillProfile` 原仅以近 8 条 `evidence` 为源，现叠加分层长期记忆传入 `profileDistillChat`（[agent.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/agent.mjs) 签名加 `memories`，system 增「长期记忆清单优先于一次性证据」约束）→ **复利回灌**（画像写 `user_profile.summary`，再经 `memoryBlock` 注入）。⑤ **观测与 UI**：[memory.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/memory.mjs) `contextPreview()` 增 `injection`（`{block_chars, prompt_chars, ratio}`——画像+记忆块占 system prompt 篇幅，观测注入是否喧宾夺主）；[Settings.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Settings.jsx) H 区补「注入占比（画像+记忆/系统提示）」KPI。**验证**：`node --check`（memory.mjs / agent.mjs / coach.mjs）全过；`npm run test:acceptance` = **72 tests（71 pass / 0 fail / 1 skip）**（较基线 70 增 2，因新增 J17/J18）；`npx vite build` exit 0。**新增测试**：**J17**（单元）——`retrieveMemories` 场景感知：断言 ① 无 `project_id` 时 project 域被门控剔除 ② 过期 short 惰性剔除 ③ `scenario.categories=['risk']` 时 risk 记忆排前 ④ `project_id` 匹配时 project 域注入（复原删 4 条）；**J18**（单元）——`profileMemoryDigest` 分层来源：断言仅 `user+long` 纳入（short/project 排除）、`level ASC` 排序（核心<重要<一般）、返回结构契约为 `['content','level']`（复原删 5 条）。**诚实标注**：① `memoryBlock` 内层 `persona.memory_on` 判断与 `buildSystemPrompt` 外层判断存在**冗余判重**（无害，按计划保留以显式表达调用契约）；② `recordHits` 分策：chat/coach=true、assistant=false、rating 不注入——「是否计入复用」为**确定性代理策略**，未接 LLM 判定（Rule 5：确定性变换交代码）；③ 场景→分类映射为 v1 六场景硬编码常量（对齐 indicator-training-map，新增场景需同步）；④ [docs/MEMORY-ARCHITECTURE.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/MEMORY-ARCHITECTURE.md) 同版升 v1.4（§5 ③⑤ 标 ✅ + `ratingChat` 校准注；§6/§7/§9 同步，P3′ 行显式标注与「助手 UI P3」同名不同义） |
+| v5.17.6 | **R7.1 记忆复利闭环补齐（P2 项目事件→项目级记忆钩子 + P4 设置区记忆分层 UI）（2026-10-13，用户「推进 P2 项目事件记忆钩子，推进 P4 记忆分层 UI」驱动；承接 v5.17.5 已交付的晋升/衰减 + 复利指标）**：① **P2 项目事件钩子（复利闭环①「产生」）**：[memory.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/memory.mjs) 新增 `PROJECT_EVENT_TEMPLATES`（risk/stakeholder/decision 三模板，**确定性拼装，零 LLM**，遵循规则/判断分离）+ `rememberProjectEvent(event, projectId, data)`——落库 `scope=project / horizon=long / level=2(重要) / kind=project / category=event / source='project#<event>'`，**fail-soft**（未知事件 / 非法 pid / 空内容 / 重复去重均返回 `{added:false, reason}`，异常不反噬事件主流程，同 `extractFromSession` 范式）；[project.routes.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/routes/project.routes.mjs) 三处接线：`POST .../risks`（风险登记）→ risk、`POST .../stakeholders`（干系人新增）→ stakeholder、`POST .../meetings`（**仅 `summary` 非空**）→ decision。② **P4 设置区记忆分层 UI**：[Settings.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Settings.jsx) 「记忆与上下文」区新增 4 维筛选栏（`scope`/`horizon`/`category`/`level`，中文标签字典 + `memQuery` 拼参 + `changeFilter` 触发 `reloadMem` 同时刷新列表与 `contextPreview`）、每条记忆分层徽标（域 个人/项目#pid / 时效 / L{level} / 分类 + 命中/到期/置顶）、复利指标两行 KPI（域 个人/项目、时效 长期/短期、层级 L1/L2/L3、累计命中（复用）、待晋升（短期命中≥3）、已过期短期 / 档案等级、画像注入、记忆注入）+ 「运行维护（晋升/衰减）」按钮（`POST /api/v2/memories/maintenance` → toast 晋升/衰减结果）；kind 显示补「项目事件」（`kind==='project'`）；旧文案「top5 置顶优先」校正为「分层配额 4/3/2」。③ **文档同步**：[docs/MEMORY-ARCHITECTURE.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/MEMORY-ARCHITECTURE.md) 升 v1.3（§5 复利闭环①标 ✅ + 实现与「决策以会议纪要 summary 为载体」校准注；§6 能力映射「项目级记忆钩子」❌→✅；§7 增量补 `rememberProjectEvent` 与 `listMemories` 筛选透传；§9 P2/P4 行 ✅）。**验证**：`node --check`（memory.mjs / project.routes.mjs / 两测试文件）全过；`npm run test:acceptance` = **70 tests（69 pass / 0 fail / 1 skip）**（较基线 68 增 2，因新增 J16 + K9）；`npx vite build` exit 0。**新增测试**：**J16**（单元）——`rememberProjectEvent` 模板映射落 project 域 long L2，断言维度元组 + 内容含标题/策略 + unknown_event/非法 pid/重复去重均 `added:false`；**K9**（HTTP 边界）——`app.inject` 打 risks/stakeholders/meetings 三路由，断言 memories 表落 `project#risk`/`project#stakeholder`/`project#decision` 三行且维度正确、**空 summary 会议不产生决策记忆**。**诚实标注**：① **代码库无独立 `decisions` 表**，决策以会议纪要 `summary` 为载体（已在 doc §5 校准注与 PRD 明示）；② 钩子固定 `level=2(重要)` 为确定性缺省，未按事件严重度动态分级（避免过度设计，使用期按反馈调）；③ 三钩子均 `source='project#<event>'` 便于回溯与去重；④ P4 未做 `project_id` 维度筛选（设置区未拉项目列表，避免新增依赖），筛选维度为 scope/horizon/category/level |
+| v5.17.5 | **R7.1 记忆复用晋升与衰减（P2：复利闭环 ④⑤——自动晋升 / 衰减）（2026-10-13，用户「推进 P2 自动晋升与衰减规则」驱动）**：① **晋升（复利核心）**：[memory.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/memory.mjs) 新增 `markInjected(ids)`——**仅真实 LLM 注入路径调用**（`buildSystemPrompt` 传 `recordHits=true`），对去重后的有效 id 执行 `hits=hits+1, last_hit=now`（同 id 去重、无效 id 不计数）；`promoteMemories({threshold})`——`horizon='short' AND hits ≥ 阈值`（`PROMOTE_HITS=3`）单条 SQL 批量 `UPDATE` 为 `long` 并清 `expires_at`（被反复复用即转长期，不再过期）。② **衰减**：`decayMemories({idleDays})`——`horizon='long' AND level < 3 AND IFNULL(last_hit, created_at) < now-90d`（`DECAY_IDLE_DAYS=90`）批量 `level=level+1`（**3 为下限，不再降**；从未命中的 long 以创建时间为基准计时）。③ **自动触发（无调度器）**：`runMemoryMaintenance()` = 晋升 + 衰减一并执行；挂在 `streamOpenAI` 的真实注入路径上（[agent.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/agent.mjs#L1) `import` 增 `markInjected`/`runMemoryMaintenance`；`buildSystemPrompt(..., {recordHits:true})` 内 `try{ markInjected(map(id)); runMemoryMaintenance() }catch{}`——**维护失败不阻断对话**；调用置于 `if(mem.length)` 之外以便衰减作用于「未被注入的闲置 long 记忆」）；`contextPreview`/测试 J11 走默认 `recordHits=false` 无副作用、测试隔离。④ **可观测/手动**：`contextPreview().layered` 新增 `promotable`（short 命中达阈值但尚未晋升计数）；[memory.routes.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/routes/memory.routes.mjs) 新增 `POST /api/v2/memories/maintenance`（手动/观测触发同一维护）。**验证**：`node --check`（memory/agent/memory 路由）全过；`npm run test:acceptance` = **68 tests（67 pass / 0 fail / 1 skip）**（较基线 67 增 1，因新增 J15）。**J15**：`markInjected` 去重与无效 id → `hits=1`/`last_hit` 落库 → 手置 `hits=3` 后 `promoteMemories` 晋升 long 且清 `expires_at` → 手置 `last_hit=-200d` 后 `decayMemories` 降 level → 手置 `level=3` 再衰减仍为 3（下限保护）→ `runMemoryMaintenance` 返回 `{promoted, decayed}` → `layered.promotable` 为数值。**诚实标注**：① 阈值 `PROMOTE_HITS=3`/`DECAY_IDLE_DAYS=90` 为模块常量，**未入 settings 白名单**（避免过度设计，使用期按反馈调）；② 「被后续会话引用」以「被真实注入」为**确定性代理**（doc §5 原意含 LLM 判定，Rule 5：确定性变换交代码，无 LLM 参与）；③ **P2 内含「项目事件→项目级记忆钩子」本轮未实施**（用户明确聚焦晋升/衰减规则），随 P4/后续阶段推进；④ **P4 设置 F 区记忆分层查看/筛选 UI 未实施** |
+| v5.17.4 | **R7.1 记忆分层分级（P1）+ AI 助手默认收缩与问题浮框（P3）（2026-10-13，用户「默认 AI 助手收缩、同时获取后端交互数据、遇问题（分析问题场景）弹浮框提示、助手记忆/上下文管理/知识复利闭环」驱动）**：① **P1 后端记忆分层**：memories 表幂等迁移 8 列（`scope`/`horizon`/`level`/`category`/`project_id`/`expires_at`/`hits`/`last_hit`）+ 复合索引 `idx_mem_scope`（[db.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/db.mjs)）；[memory.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/memory.mjs) 分层 CRUD 全字段校验 + 新增 `retrieveMemories`（**域门控**：`user` 恒注入 / `project` 仅页面 `project_id` 匹配 → 到期 `short` 惰性回收 → 场景偏好前置排序 → 分层配额 `userLong/projectLong/short`）；`contextPreview` 增 `layered` 复利指标（by_scope/by_horizon/by_level/promoted/hits_total/expired_short）；② **P1 注入改造**：[agent.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/agent.mjs) `buildSystemPrompt` 用 `retrieveMemories` 取代 flat `LIMIT 5`，`streamChat`→`streamOpenAI` 贯通 `pageContext`；[chat.routes.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/routes/chat.routes.mjs) 透传 `pageContext`；[memory.routes.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/routes/memory.routes.mjs) `GET /settings/memories` 支持筛选 query；③ **P3 助手 UI**：[Assistant.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Assistant.jsx) 默认 `open=false`（全站收缩）；收缩态遇 `suggest` 信号（容差预警→例外教练 / 待复习→强化营）弹 `.asst-bubble` 浮框（含问题文案 + 「让 AI 分析」+ `×` 不再提示），点「让 AI 分析」展开侧栏并把问题上下文代入对话（`sendText`）；`streamReply` 补 `pageContext`（配合 P1 项目域注入）；[index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html) 新增 `.asst-bubble` 样式 + 断点微调；④ **设计契约**：新增 [docs/MEMORY-ARCHITECTURE.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/MEMORY-ARCHITECTURE.md)（四维度分层模型 / 迁移 / 场景检索 / 复利闭环 / 能力映射 / 分阶段）。**验证**：`node --check`（db/memory/agent/chat/memory 路由）全过；`npm run test:acceptance` = **67 tests（66 pass / 0 fail / 1 skip）与基线一致**（J11 注入契约 + I2 流式回归通过）；`npx vite build` exit 0。**诚实标注**：P2（项目事件→项目级记忆钩子 + 短期晋升/衰减规则）与 P4（设置 F 区记忆查看/筛选 UI）**未实施**，按 [MEMORY-ARCHITECTURE.md §9](file:///Users/duke/Documents/经营分析看板/pm-master/docs/MEMORY-ARCHITECTURE.md) 分阶段推进；单用户系统下「权限」=域/场景可见性门控（非多租户 ACL）；浮框为本机交互自测（点「让 AI 分析」展开侧栏），未逐设备实拍 |
+| v5.17.3 | **外壳布局修复：补齐工作台高度链，消除整页下拉（2026-10-13，用户「`div`优化展示框，避免不断下拉」驱动——浏览器选中教练室对话卡片 `div.card`）**：① **根因**：React 挂载点 `#root` 在 [index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html) 内**无任何 CSS 规则**（存量问题，经 `git show HEAD:web/index.html` 确认非本会话回归），其 `display:block` 横亘于 `body{display:flex;flex-direction:column;height:100vh}` 与 `main{flex:1;min-height:0}` 之间**切断 flex 高度链** → `main` 高度退化为内容高（实测 1737px）→ `.split{height:100%}` 百分比高度对不定高父级解析为 auto → 整个页面沦为普通文档流（实测 `docOverflow:927`），header/tabs 随页滚走、教练室输入栏 `#bar` 滚出视口（`barInView:false`）；② **修复**：[index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L72) 新增 `#root { flex:1; min-height:0; display:flex; flex-direction:column }` 接通高度链；[CoachRoom.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/CoachRoom.jsx) 两处夹紧——`.split` 加 `gridTemplateRows:'minmax(0,1fr)'`（夹紧隐式行高）、`#msgs` 加 `minHeight:0`（flex 子项允许收缩 + `overflow:auto` 自治滚动），GROW 轨与输入栏固定；[index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L510) 补 `.split > .card{min-height:0}`；③ **回归防护**：≤1180 断点补 `main{overflow:auto!important}`——该区间 `.split` 折叠单列 `height:auto`，若 `main` 保持内联 `overflow:hidden` 则新外壳下内容会被裁切且无滚动（本次 bounding 引发的连带风险，一并清偿）；≤768 断点 `body/main{height:auto}` 恢复整页滚动，不受影响。**实测**（浏览器 DOM 断言，教练室）：`docOverflow:0`、`rootDisplay:flex`、`mainH:809`、`splitH:781`、三卡齐 781、`#msgs` 受限于 649（内容超出即内部滚动）、`barInView:true`。**验证**：`npx vite build` exit 0；`npm run test:acceptance` = **67 tests（66 pass / 0 fail / 1 skip）与基线一致**；dev server 实测返回新 CSS。**诚实标注**：① 8 tab 逐页实拍冒烟未完成——浏览器 bridge 连续超时（4 次 `IDE Command timeout`，同 v5.16.0 记录的工具通道故障）；改为**静态核查**：8 页根容器（RA/Records/Itto/CoachRoom/Growth/Drill/Workbench/Settings）均含内部滚动区（`overflow:auto` 或 `flex:1+min-height:0`），外壳修复对全部 tab 一致生效；② 该修复本质是「补齐缺失的根容器样式」，属全局布局契约变更而非仅教练室局部 |
+| v5.17.2 | **全视觉重构：设计令牌体系重铸 + 组件规范文档交付（2026-10-13，用户「Use Skill: design-taste-frontend 对项目整体 UI/UX 全面重构优化」驱动；范围裁决=全视觉重构（重做配色/字体层级/形状与动效，保留 IA 与业务逻辑）+ em-dash 全部清零 + 新增独立规范文档）**：① **令牌层（[index.html](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L51-L57)）**：新增圆角 7 级刻度 `--r-xs/sm/md/lg/xl/2xl/pill` 与动效 3 档时长 `--dur-1/2/3`（消费于 `transition:` 行，`animation:` 与 `transform .1s` 保持字面量）；组件层 62 处字面圆角 + 50 处 transition 时长 tokenize，2 处漂移值收敛（`.m.sys` 8px→`--r-md`、`.src-tag` 5px→`--r-sm`）；② **亮色主题 WCAG AA 校正**：`--accent/#0b63c4`、`--ok/#0f6b41`、`--warn/#7d5514`、`--cin/#a93a2e`、`--hot/#b45309`、`--on-accent/#ffffff` 重定（浅底深字），修复 `--accent-grad` 亮色端点（原 2.28:1 → 新端点 ≥8.0）；程序化对比度校验 dark/light 全真实配对 ≥4.5 PASS；③ **BUG 修复**：`.badge.neutral` 引用未定义的 `--ink2` → `var(--text-2)`（全库唯一出现点）；④ **响应式重构（[`.split` 定义](file:///Users/duke/Documents/经营分析看板/pm-master/web/index.html#L507-L514)）**：新增 `.split` 分栏类（8 处：RA/Records/Itto/CoachRoom/Growth/Drill/Workbench/Settings，热力数据网格除外）替换内联属性选择器 hack；断点 ≤1180 分栏折叠单列 / ≤768 移动端（顶栏换行、tab 横滚、助手侧栏抽屉化、flex wrap）/ ≤480 极窄屏微调；⑤ **组件清扫**：`web/src` 内 em-dash「—」清零（28 处/10 文件，范围用 `-`、说明用 `：`/`，`、空值占位 `-`）+ 12 处内联硬编码 `borderRadius` tokenize；⑥ **交付物**：新增 [docs/UI-DESIGN-SPEC.md](file:///Users/duke/Documents/经营分析看板/pm-master/docs/UI-DESIGN-SPEC.md)（令牌体系/无障碍 AA/组件清单/状态反馈/响应式/贡献者自查表）。**手段**：确定性转换交 Node 脚本按有序映射表执行并逐条断言 expectedCount（整文件全匹配才写回，幂等安全；遵从项目「规则交给代码」），非逐文件手写。**验证**：`node --check` + `vite build` + `npm run test:acceptance` 与基线一致 + 起服务 DOM 抽查（对比度/空态/响应式）。**诚实标注**：窄屏折叠为 CSS 断点程序化校验 + DOM 断言，未逐设备实拍；Firefox/Safari/Edge 按特性基线（color-mix/dvh/:focus-visible）推断可用，本机 Chrome 实测；design-taste-frontend skill 的 dashboard/landing 专用规则不适用本项目（§13 明示 OUT OF SCOPE），取其通用工程/无障碍规则落地 |
+| v5.17.1 | **v2 命名迁移（2026-10-12，用户「执行 v2 命名迁移」驱动；命名空间裁决=方案 A 按 §7.3 域命名空间）**：将蓝图 §7.3 迁移映射从「设计目标」转为**全面落地**——全站接口统一挂 `/api/v2/<domain>/` 域前缀并按域归位（后端 129 条路由 + 前端 157 处调用点 + 测试 73 处引用，**共 333 处字面重写**）。① **后端**：24 个 routes/*.routes.mjs + scheduler.mjs 逐文件改写字面路径串并跨域归位（records←evidence/experience-stats；projects←alerts/risks/actions/hints/portfolio；drill←tasks；settings←prompts/memories/skills/mcp；growth←llm/stats），服务层注释同步；routes/index.mjs 与装配根无需改动；② **前端**：13 个 jsx 迁移调用点（含 6 处 raw fetch + 4 处 window.open 导出/调度 url 字面量），api.js 门面与 router.js 不变；③ **测试**：api.boundary / acceptance / e2e.render 三文件引用迁移；**`/api/health` 探针路径刻意保持稳定**（e2e 就绪探测依赖），`/api/nonexistent-route` 负例不动；④ **运行时与文档**：pm.sh 飞书状态探针同步 v2；README API 表 / AGENTS 验证命令 / 蓝图 §7.3 标注「已执行」同步。**手段**：作为确定性转换交由 Node 脚本按有序映射表执行（先具体后一般、old/new 互不包含→幂等安全），非逐文件手写（遵从项目「规则交给代码」）。**验证**：33 文件 `node --check` 全过；`npm run test:acceptance` = **67 tests（66 pass / 0 fail / 1 skip）与基线一致**；`vite build` exit 0；全仓库 grep `/api/` 无旧路径残留（仅 health 与 404 负例保留）。**诚实标注**：本次为**破坏性 URL 重组**（用户已授权），无旧路径兼容层——任何存量书签/外部调用需改用 v2 路径 |
+| v5.17.0 | **站点路由与 API 解耦重构（2026-10-12，用户「对整个站点的路由，API结合技术架构和数据架构进行设计，对功能接口进行解耦」驱动；交互裁决=蓝图+落地重构 / HTML 可视化报告 / 允许破坏性重组）**：① **后端分层解耦**：god module [index.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/index.mjs) **599→31 行**（收敛为纯装配根：Fastify 实例 + 错误风格 + registerRoutes + 启动；四条契约 `export app`/`export runJob`/`node src/index.mjs`/`PM_NO_LISTEN` 全保留）；新增 [routes/index.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/routes/index.mjs) 装配入口（按原线性首现顺序注册，行为等价）+ **routes/*.routes.mjs×24**（standard/profile/chat/coach/project/records/feishu/export/feedback/drill/growth/settings/importx/patrol/prompts/memory/skills/mcp/tasks/notifications/assistant/ra/itto/health，各导出 `register(app)`）；调度器独立 [scheduler.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/scheduler.mjs)（JOBS 注册表 + cronMatch + jobState/runJob + 2 路由）；新增 **repo/*.repo.mjs×6**（coach/project/records/tasks/profile/health）承接 **33 条 SQL**，传输层内联 SQL 归零；② **前端解耦**：新增 [router.js](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/router.js)（hash 深链 `#/<tab>`，TAB_IDS 8 项，读 location.hash + hashchange）与 [api.js](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/api.js)（集中式 fetch 门面：统一 `!r.ok` 与 message 提取，get/post/put/del）；[App.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/App.jsx) `useState('coach')`→`useHashTab('coach')`；**13 个 jsx 迁移 110+ 调用点**、删 2 份重复 `j()`（Settings/Itto——6 处刻意保留 raw fetch：Assistant SSE + RA/Growth/Workbench 导出读非 2xx 体做业务判定，迁移会改降级语义）；③ **交付物**：HTML 架构蓝图《站点路由与API解耦架构蓝图.html》（9 节：现状诊断/设计目标 P1-P6/技术架构四层+依赖规则/站点路由/API 契约/数据架构 36 表/功能接口解耦方案+迁移映射/回归验证/交付清单）；④ **验证**：33 文件 `node --check` 过；`npm run test:acceptance` = **67 tests（66 pass / 0 fail / 1 skip）与基线一致**；`npx vite build` exit 0；GetDiagnostics 0 诊断。**诚实标注**：**URL 路径保持不变**——解耦主价值在模块边界而非 URL 重命名，129 条路由处理器全量改名会连带 110+ 前端调用点、3 个测试文件与 e2e 探测一起改动，风险高收益低；故落地采用「路径不变、模块解耦」，蓝图附 **v2 干净命名迁移映射表**（尚未执行，属刻意取舍非折中） |
+| v5.16.3 | **飞书删除入口产品化：deleteDoc 暴露 HTTP 路由 + 设置中心删除按钮（2026-10-12，用户「修复 deleteDoc 未暴露路由」驱动，清偿 v5.16.2 诚实标注①）**：① **后端**：[index.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/index.mjs) 新 `POST /api/feishu/delete`——body `{ref, confirm}`，遵循**项目硬规则删除双确认**（`confirm` 必须等于 `ref`，同 feedback 删除语义）；失败分支按边界测试「校验失败精确 400」口径：缺 ref / 双确认不符 → 400，飞书未配置 `NOT_CONFIGURED` → 400（对齐 export-doc 降级契约），坏引用 `BAD_REF` → 400；② **前端**：[Settings.jsx](file:///Users/duke/Documents/经营分析看板/pm-master/web/src/Settings.jsx) 飞书读入卡片输入行新增行内二次确认删除按钮（`.mini.danger` 图标 →「确认删除 / 取消」，复用记忆/MCP 同款交互），删除成功即清空读入预览；③ **测试**：boundary 增 **K8**（缺 ref 400 / 双确认不符 400 / 未配置明确降级 400 且返回可识别码），**基线 67 tests（66 pass / 1 skip）**、`vite build` 过。**诚实标注**：删除为真实云盘操作（移入回收站，应用需 `drive:drive` 权限）；UI 层未在本机以真实凭据跑端到端删除（凭据门控 + K8 覆盖 400 分支，deleteDoc 本体真实删除已在 v5.16.2 live J14 实测）|
 | v5.16.2 | **R7.0 收口：飞书 deleteDoc 云盘删除交付 + 测试产物清零（2026-10-12，用户「执行方案 2」驱动，清偿 v5.16.1 诚实标注①）**：① [feishu.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/feishu.mjs) `apiGet` 泛化为 `apiReq(method, path, token)`（fail-loud 报错带 HTTP 方法），新增 `deleteDoc(ref)`——复用 parseDocRef（/docx/、/wiki/、裸 token，wiki 经 get_node 换 obj_token）→ `DELETE /drive/v1/files/{doc_id}?type=docx`（移入回收站，应用需开通 `drive:drive` 权限）；② **权限申请链接**：`https://open.feishu.cn/app/{APP_ID}/auth`（从环境读 app_id 组装，secret 不回显），用户开通 drive:drive 后实测生效；③ **J14 live 闭环扩为「自产自读自删」**：读断言后 `deleteDoc(w.url)` 清自产文档（深比较返回契约），每次跑零云盘残留。发现：`GET /drive/v1/files` 的 `folder_token` 必填（空串/省略均 99992402 field validation failed），应用根目录 token 经 `GET /drive/explorer/v2/root_folder/meta/` 获取（tenant token 可用——本环境实测应用可见 3 篇历史产物）。**实测**：deleteDoc 真删 3 篇测试文档（VB51d…《readDoc 自测》、K1ks…/D3iT… 两篇 TEST-AUTO），读已删文档确认 `resource deleted` 报错，根目录清零仅剩 P3 历史周报/月报；默认基线 66 tests（65 pass/1 skip）+ live J14 ✔（5.9s 含删除往返）。**诚实标注**：deleteDoc 未暴露 HTTP 路由（v1 仅测试清理与脚本用途，产品化删除入口随 P6 反馈再议）；回收站 30 天内可恢复 |
 | v5.16.1 | **R7.0 P5 收口：飞书 readDoc 真实闭环实测 + 端点缺陷修复（2026-10-12，用户「配置飞书文档链接测试 readDoc」驱动，推翻 v5.16.0 诚实标注②）**：① **缺陷修复（[feishu.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/feishu.mjs)）**：readDoc 分页端点原用**不存在的 `allBlocks` 接口**（404 HTML 被 `res.json()` 吞成 SyntaxError）→ 改官方 `GET /docx/v1/documents/{doc}/blocks/{doc}/children?page_size=50` 分页（root block id = document_id，≤100 页护栏）；`apiGet` 改 **fail-loud**（先 text 再 parse，非 JSON 带 HTTP 状态码报错、常见原因提示；code≠0 透出端点路径+msg）；blocks2md 修复 `?? b`→`?? {}` 空值崩溃并补 t=14 quote 引用块分支；② **真实闭环三重实测**：exportDoc 自产《readDoc 自测》文档（10 blocks）→ readDoc 读回**标题/多级标题/列表/表格展平 6/6 关键句比对全过**；curl API 通道 + 浏览器 M 区「读入→送入导入向导」**跨 tab 事件桥实测全通**（自动切工作台、Modal 预填 Markdown、toast 正确）；③ **J14 增强为 opt-in 双模**：默认离线回归（零密钥约定保留——测试文件头清凭据是既有设计，v5.16.0 版 J14 的 `if (feishuConfigured())` 实为死分支，本轮发现并纠正）；`RUN_FEISHU_LIVE=1 bash scripts/with-env.sh --test-name-pattern J14 --test test/acceptance.test.mjs` 临时注入凭据跑自产自读闭环（标题带 TEST-AUTO 标记、用毕即清不影响其他用例）。**实测**：默认基线 **66 tests（65 pass / 1 skip=C4）不变**；live 模式 J14 ✔（4.2s 真实 API 往返）；with-env 用法核实（脚本 exec `node --env-file "$@"`，直接传 `--test` 参数、非 `--` 分隔）。**诚实标注**：① 测试云盘遗留《readDoc 自测》《TEST-AUTO》文档 2 篇（无 drive 删除权限 API，需手动删）；② blocks2md 仍 demo 级保真（图片/代码块等 20+ 块类型未覆盖，读入目的是喂导入向导）|
 | v5.16.0 | **R7.0 P5 技能注册表 + MCP 壳 + 飞书读入交付（2026-10-12，设置中心 L/M 区——P1-P5 规划收官）**：① **技能注册表（L 区）**：新 [skills.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/skills.mjs)——**22 项 LLM 能力静态登记**（purpose/中文名/分组/强弱档/说明，与 agent.mjs 各通道严格对齐；实现中**发现 streamChat 旁路 purpose='chat' 未走 callJSON，补第二道门**），kill-switch 走 KV `skill.<id>` 命名空间（直写 settings 表、与 P1 白名单同表不同前缀，默认启用）；[callJSON/streamChat](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/agent.mjs) 入口拦截停用能力——**抛错先经 logCall 落 llm_calls**（停用尝试可观测）；统计复用 llm_calls 全时段按 purpose 聚合（calls/成功率/avg_ms/tokens）；② **MCP 管理壳（M 区）**：新 [mcp.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/mcp.mjs) + `mcp_servers` 表——登记/启停/编辑/删除 + **which 探测**（`/usr/bin/which` 查 PATH 可解析性，**绝不执行目标命令**——任意命令执行面留给真实协议接入立项，PRD 明示 v1 边界）；③ **飞书读入（M 区卡片）**：[feishu.mjs](file:///Users/duke/Documents/经营分析看板/pm-master/server/src/feishu.mjs) `readDoc`——parseDocRef 纯函数（/docx/、/wiki/、裸 token；wiki 经 get_node 换 obj_token 仅 docx 类）→ allBlocks 分页（≤40 页×500）→ demo 级 Markdown；**跨 tab 事件桥**：Settings「送入导入向导」→ dispatch `pm-import-prefill` → App 监听（Workbench 条件渲染不在场，**须在 App 中转**；踩坑：tab key 是 `'work'` 非 `'workbench'`）→ 切工作台 + Import 以 seq 为 key 重挂载预填 initialText；④ 前端 Settings 导航 10→12 分区，L 区按组渲染开关行+统计、M 区 MCP 行（badge 三色/探测 busy/行内确认删除）+ 编辑 Modal + 飞书状态卡；CSS 补 `.badge.ok/.neutral` 语义变体。**实测**：TDD——**J12**（注册表自洽+**purpose 漂移检测**：llm_calls 历史 purpose 必须已登记，新通道漏登记即红）、**J13**（MCP CRUD 校验+which 探测 available/not_found，不执行目标）、**J14**（parseDocRef 五路 + 凭据/坏引用两分支错误不打网）；**基线 66 tests（65 pass / 1 skip=C4）+ e2e 12/12**；build 过；**kill-switch 生产通道端到端**——API 停用 weekly → 真实周报生成 500 明确报「已停用」→ null 恢复 → 再生成成功（副作用：冒烟产生 2 条演示项目周报 id=4/5，演示数据无碍保留）；MCP npx 探测返回真实路径 /opt/homebrew/bin/npx；**飞书凭据实测 configured=true**（token→API 链路通，坏 token 错误透传——真实文档读入因无有效 doc_id 未跑）；浏览器交互实测（上轮故障的工具通道本轮恢复，走 evaluate 通道）——coach 开关停用/恢复（半透明+warn toast）、MCP 登记 Modal 填表→保存→探测 badge「可解析」→两步确认删除→空态复原、L 组标题 4 组齐、导航 12 项、亮色 notice 色板正确。**诚实标注**：① MCP 为登记壳非协议接入（有意边界，安全评审后立项）；② 飞书真实文档读入未实测（需有效 doc_id 的文档链接），链路各环节已分别验证；③ blocks2md 为 demo 级保真（表格展平/嵌套列表降级），读入目的是喂导入向导非排版还原；④ 停用 chat 后助手仅剩查询动作（前端 L 区 desc 已提示）；⑤ 冒烟周报 id=4/5 为演示项目真实产物，保留 |

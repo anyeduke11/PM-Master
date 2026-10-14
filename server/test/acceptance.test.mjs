@@ -31,8 +31,8 @@ const { importPreview, importCommit, importLogs } = await import('../src/import-
 const { toolUsage, assignToolTask } = await import('../src/tools-usage.mjs');                 // R7.0 P2 工具频率
 const { patrolScan, patrolRun, patrolReports } = await import('../src/patrol.mjs');           // R7.0 P3 每日巡检
 const { listPrompts, createPrompt, updatePrompt, deletePrompt } = await import('../src/prompts.mjs');   // R7.0 P3 提示词库
-const { listMemories, addMemory, updateMemory, deleteMemory, distillProfile, contextPreview } = await import('../src/memory.mjs');   // R7.0 P4 记忆与画像
-const { buildSystemPrompt } = await import('../src/agent.mjs');                                          // R7.0 P4 注入断言
+const { listMemories, addMemory, updateMemory, deleteMemory, distillProfile, contextPreview, memoryBlock } = await import('../src/memory.mjs');   // R7.0 P4 记忆与画像
+const { buildSystemPrompt, ROLE_LINE, COACH_RULES, buildAssistantPrompt } = await import('../src/agent.mjs');   // R7.0 P4 注入断言 + 统一角色（PRD v5.18.0 §15.0）
 const { generateWeekly } = await import('../src/workbench.mjs');                              // R7.0 P2 周报回归
 const { review } = await import('../src/drill.mjs');
 const { seedCards } = await import('../src/seeds.mjs');
@@ -49,7 +49,7 @@ const { dueSummary, dueQueue, cardFeynman } = await import('../src/drill.mjs');
 const { llmStats, assistantChat, streamChat } = await import('../src/agent.mjs');
 const { exportJSON, exportMarkdown } = await import('../src/export.mjs');
 const { addFeedback, listFeedback, feedbackStats, resolveFeedback, deleteFeedback } = await import('../src/feedback.mjs');
-const { addMessage, listMessages, clearMessages, updatePlanState } = await import('../src/assistant.mjs');
+const { addMessage, listMessages, clearMessages, updatePlanState, INTENTS, parse } = await import('../src/assistant.mjs');
 process.env.PM_NO_LISTEN = '1';   // 必须早于 index 导入：跳过 listen（R5.3 安全导入 runJob）
 const { runJob } = await import('../src/index.mjs');
 
@@ -549,7 +549,7 @@ test('I1 C1 反馈通道：提交校验 + 聚合契约 + resolve + 删除双确�
 });
 
 test('I2 R6.3 流式 429 有界重试：mock 网关持续限流 → 恰一次重试、显式抛错、观测落行', { timeout: 30_000 }, async () => {
-  // seam：streamChat 公开接口（/api/chat SSE 行为）+ llm_calls 读侧；本地 429 mock 网关计数请求次数
+  // seam：streamChat 公开接口（/api/v2/chat SSE 行为）+ llm_calls 读侧；本地 429 mock 网关计数请求次数
   let hits = 0;
   const srv = http.createServer((req, res) => {
     hits += 1;
@@ -920,4 +920,168 @@ test('J14 飞书读入：引用解析纯函数 + 降级提示（RUN_FEISHU_LIVE=
     process.env.FEISHU_APP_ID = '';
     process.env.FEISHU_APP_SECRET = '';
   }
+});
+
+// ============ J15 R7.1 P2 记忆复用晋升与衰减（复利闭环，纯代码） ============
+
+test('J15 P2 记忆晋升/衰减：注入命中计数 → short 达阈值晋升 long（清 TTL）；long 久未命中降 level（3 为下限）', async () => {
+  const { markInjected, promoteMemories, decayMemories, runMemoryMaintenance } = await import('../src/memory.mjs');
+  // ① 命中计数：去重 + 不存在的 id 静默跳过
+  const s = addMemory({ content: 'J15 短期记忆待晋升', horizon: 'short', category: 'goal' });
+  assert.ok(s.expires_at, 'short 自动带 TTL（可被晋升清除）');
+  assert.deepEqual(markInjected([s.id, s.id, 999999]), { hit: 1 }, '同 id 去重、无效 id 不计数');
+  assert.equal(db.prepare('SELECT hits FROM memories WHERE id=?').get(s.id).hits, 1);
+  assert.ok(db.prepare('SELECT last_hit FROM memories WHERE id=?').get(s.id).last_hit, 'last_hit 落库');
+  // ② 晋升：达阈值 → long + 清 expires_at
+  db.prepare('UPDATE memories SET hits=? WHERE id=?').run(3, s.id);
+  assert.ok(promoteMemories({ threshold: 3 }).promoted >= 1, '达阈值发生晋升');
+  const up = db.prepare('SELECT horizon, expires_at FROM memories WHERE id=?').get(s.id);
+  assert.equal(up.horizon, 'long', 'hits≥阈值 → 晋升 long');
+  assert.equal(up.expires_at, null, '晋升清 expires_at（不再过期）');
+  // ③ 衰减：long 久未命中 → level+1（level<3 才降）
+  const l = addMemory({ content: 'J15 长期记忆待衰减', horizon: 'long', level: 1 });
+  db.prepare(`UPDATE memories SET last_hit=datetime('now','localtime','-200 day') WHERE id=?`).run(l.id);
+  assert.ok(decayMemories({ idleDays: 90 }).decayed >= 1, '久未命中发生衰减');
+  assert.equal(db.prepare('SELECT level FROM memories WHERE id=?').get(l.id).level, 2, 'level+1');
+  // ④ 下限保护：level=3 不再降
+  db.prepare(`UPDATE memories SET level=3, last_hit=datetime('now','localtime','-400 day') WHERE id=?`).run(l.id);
+  decayMemories({ idleDays: 90 });
+  assert.equal(db.prepare('SELECT level FROM memories WHERE id=?').get(l.id).level, 3, '3 为下限，不再降');
+  // ⑤ 维护合并入口契约（晋升 + 衰减一并返回）
+  assert.deepEqual(Object.keys(runMemoryMaintenance()).sort(), ['decayed', 'promoted']);
+  // ⑥ 预览复利指标暴露待晋升计数
+  assert.equal(typeof contextPreview().layered.promotable, 'number', 'layered.promotable 供观测');
+  // 复原
+  deleteMemory(s.id); deleteMemory(l.id);
+});
+
+// ============ J16 R7.1 P2 项目事件钩子：事件→project 域记忆（复利闭环①，纯代码） ============
+
+test('J16 P2 项目事件钩子：模板映射落 project 域 long L2；未知事件/非法项目/重复均不落入', async () => {
+  const { rememberProjectEvent } = await import('../src/memory.mjs');
+  const { insertProject } = await import('../src/repo/project.repo.mjs');
+  const pid = insertProject('J16 事件钩子桩项目', 'normal', '项目经理', '2026-01-01', JSON.stringify({ cost: 0.1, time: 0.1 })).id;
+  // ① 风险事件：内容确定性拼装，维度齐备
+  const r = rememberProjectEvent('risk', pid, { title: 'J16 进度风险', probability: 0.6, impact: 0.8, strategy: '赶工' });
+  assert.equal(r.added, true, '风险事件应沉淀为记忆');
+  const row = one('SELECT kind, scope, horizon, level, category, project_id, source, content FROM memories WHERE id=?', r.id);
+  assert.deepEqual(
+    [row.kind, row.scope, row.horizon, row.level, row.category, row.project_id, row.source],
+    ['project', 'project', 'long', 2, 'risk', pid, 'project#risk'],
+    '风险记忆：kind/scope/horizon/level/category/project_id/source 全部正确',
+  );
+  assert.match(row.content, /J16 进度风险/, '内容按模板拼装（含标题）');
+  assert.match(row.content, /赶工/, '内容含应对策略');
+  // ② 未知事件：不入库（fail-soft 返回原因）
+  assert.deepEqual(rememberProjectEvent('nope', pid, {}), { added: false, reason: 'unknown_event:nope' });
+  // ③ 非法 project_id：不入库
+  assert.equal(rememberProjectEvent('risk', 'abc', { title: 'x' }).added, false, '非法项目号拒绝');
+  // ④ 重复（同域同事件同内容）：去重，不落第二条
+  assert.equal(rememberProjectEvent('risk', pid, { title: 'J16 进度风险', probability: 0.6, impact: 0.8, strategy: '赶工' }).added, false, '同域同内容去重');
+  // 复原
+  deleteMemory(r.id);
+});
+
+// ============ J17-J18 R7.1 P3 记忆注入补齐（③检索注入 场景感知）+ 画像分层来源（⑤蒸馏回灌） ============
+
+test('J17 P3 场景感知检索：域门控 / 场景偏好前置 / 过期 short 惰性剔除（纯代码，零 LLM）', async () => {
+  const { retrieveMemories } = await import('../src/memory.mjs');
+  const { insertProject } = await import('../src/repo/project.repo.mjs');
+  const pid = insertProject('J17 检索桩项目', 'normal', 'PM', '2026-01-01', JSON.stringify({ cost: 0.1, time: 0.1 })).id;
+  // user-long：goal 与 risk 同 level/pinned/hits → 唯场景偏好可决定先后
+  const g = addMemory({ content: 'J17 用户目标记忆', category: 'goal', level: 1 });
+  const r = addMemory({ content: 'J17 用户风险记忆', category: 'risk', level: 1 });
+  const pm = addMemory({ content: 'J17 项目风险记忆', scope: 'project', project_id: pid, category: 'risk', level: 1 });
+  const ex = addMemory({ content: 'J17 过期短期记忆', horizon: 'short', category: 'task', expires_at: '2000-01-01 00:00:00' });
+  // ① 域门控：无项目上下文 → 仅 user 域（project 记忆不注入）
+  const noPid = retrieveMemories({});
+  assert.ok(noPid.some((m) => m.id === g.id), 'user 域恒可注入');
+  assert.ok(!noPid.some((m) => m.id === pm.id), '无 project_id 时 project 域被门控剔除');
+  // ② 过期 short 剔除（惰性回收）
+  assert.ok(!noPid.some((m) => m.id === ex.id), '过期 short 不注入');
+  // ③ 场景偏好前置：categories=[risk] → 风险记忆先于目标记忆
+  const sc = retrieveMemories({ scenario: { categories: ['risk'] } });
+  const ri = sc.findIndex((m) => m.id === r.id);
+  const gi = sc.findIndex((m) => m.id === g.id);
+  assert.ok(ri > -1 && gi > -1 && ri < gi, '场景偏好分类（risk）命中前置');
+  // ④ 项目上下文匹配 → project 域进入候选
+  assert.ok(retrieveMemories({ pageContext: { project_id: pid } }).some((m) => m.id === pm.id), 'project_id 匹配时 project 域注入');
+  // 复原
+  for (const m of [g, r, pm, ex]) deleteMemory(m.id);
+});
+
+test('J18 P3 画像蒸馏分层来源：profileMemoryDigest 仅 user+long；level ASC/hits DESC；排除 short 与 project', async () => {
+  const { profileMemoryDigest } = await import('../src/memory.mjs');
+  const { insertProject } = await import('../src/repo/project.repo.mjs');
+  const a = addMemory({ content: 'J18 核心记忆', level: 1, category: 'goal' });
+  const b = addMemory({ content: 'J18 一般记忆', level: 3, category: 'fact' });
+  const c = addMemory({ content: 'J18 重要高频记忆', level: 2, category: 'preference' });
+  db.prepare('UPDATE memories SET hits=5 WHERE id=?').run(c.id);
+  const s = addMemory({ content: 'J18 短期记忆', horizon: 'short', category: 'task' });
+  const pid = insertProject('J18 蒸馏桩项目', 'normal', 'PM', '2026-01-01', JSON.stringify({ cost: 0.1, time: 0.1 })).id;
+  const p = addMemory({ content: 'J18 项目记忆', scope: 'project', project_id: pid, level: 1, category: 'risk' });
+  const d = profileMemoryDigest({ limit: 30 });
+  const contents = d.map((x) => x.content);
+  assert.ok(contents.includes('J18 核心记忆'), 'user 域长期记忆纳入蒸馏源');
+  assert.ok(!contents.includes('J18 短期记忆'), 'short 排除（避免一次性任务细节污染画像）');
+  assert.ok(!contents.includes('J18 项目记忆'), 'project 域排除（画像为跨项目稳定特质）');
+  // 排序：level ASC（核心优先）
+  const ia = d.findIndex((x) => x.content === 'J18 核心记忆');
+  const ic = d.findIndex((x) => x.content === 'J18 重要高频记忆');
+  const ib = d.findIndex((x) => x.content === 'J18 一般记忆');
+  assert.ok(ia > -1 && ic > -1 && ib > -1 && ia < ic && ic < ib, 'level ASC 排序：核心<重要<一般');
+  // 结构契约（供 profileDistillChat 消费）
+  assert.deepEqual(Object.keys(d[0]).sort(), ['content', 'level']);
+  // 复原
+  for (const m of [a, b, c, s, p]) deleteMemory(m.id);
+});
+
+// ============ U. 统一角色（PRD v5.18.0 §15.0「教练角色即 AI 助手」/ ACCEPTANCE-SPEC v1.0 §6.2 代码级合流） ============
+
+test('U1 统一角色：三路 system 首行同一人设（chat/教练/助手），面差异保留在后续行', () => {
+  const p = getProfile();
+  const chat = buildSystemPrompt(p);                                                // chat 路径（助手面自由问答）
+  const coach = COACH_RULES;                                                        // 教练面规则（GROW 演练）
+  const asst = buildAssistantPrompt({ pageContext: { tab: 'coach' }, profile: p }); // 助手面意图判定
+  // 首行角色名一致：合流为同一角色「AI 教练助手」（Spec §6.2 步骤1 通过标准）
+  assert.equal(chat.split('\n')[0], ROLE_LINE, 'chat 路径首行 = 统一人设');
+  assert.equal(coach.split('\n')[0], ROLE_LINE, '教练路径首行 = 统一人设');
+  assert.equal(asst.split('\n')[0], ROLE_LINE, '助手路径首行 = 统一人设');
+  assert.ok(ROLE_LINE.includes('AI 教练助手'), '统一角色名为「AI 教练助手」');
+  // 面差异保留在后续行（同一角色的不同能力面，非两个并列角色）
+  assert.ok(coach.includes('GROW') && coach.includes('不代答'), '教练面保留 GROW 教练原则');
+  assert.ok(asst.includes('操作意图'), '助手面保留意图判定职责');
+});
+
+test('U2 单一身份：两能力面共享同一画像/记忆/注入链（memoryBlock）；contextPreview().injection 与注入链一致', () => {
+  updateProfile({ summary: '该用户是 U2 桩：跨项目稳定特质' });
+  const mem = addMemory({ content: '该用户习惯先对齐目标再谈方案（U2 桩）' });
+  const p = getProfile();
+  // 同一条上下文注入链：同 profile 同上下文 → 同一文本块（PRD §15.0「单一身份」条）
+  const block = memoryBlock({ profile: p });
+  assert.ok(block.includes('该用户是 U2 桩') && block.includes('U2 桩）'), 'memoryBlock 组装画像 + 分层记忆');
+  assert.ok(buildSystemPrompt(p).includes('该用户习惯先对齐目标'), 'chat 路径注入共享记忆');
+  assert.ok(buildAssistantPrompt({ pageContext: {}, profile: p }).includes('该用户习惯先对齐目标'), '助手路径注入共享记忆');
+  // RC-3 代码项（待补测）：contextPreview().injection 对两条路径一致——预览注入块即注入链同源产出
+  const pv = contextPreview();
+  assert.equal(pv.injection.block_chars, block.length, 'contextPreview 注入块长度 = memoryBlock 同源产出');
+  assert.equal(pv.system_prompt.split('\n')[0], ROLE_LINE, '预览 system_prompt 反映统一人设');
+  // 复原
+  deleteMemory(mem.id);
+  updateProfile({ summary: null });
+});
+
+test('U3 边界 N1-N6 不可越权：白名单不含决策/发证/考试类；危险操作双确认标记；白名单外回落自由问答', async () => {
+  const keys = Object.keys(INTENTS);
+  // N1 不替用户决策 / N4 不发证 / N5 不做考试模拟——白名单内无此类越权意图
+  assert.ok(!keys.some((k) => /decision|decide|cert|exam|authorize|approve/i.test(k)), '无决策/发证/考试/授权类意图');
+  // 所有意图均为确定性执行动作，类型受限于 write/read/action（规则交代码，判断交 AI，决策交用户）
+  const types = [...new Set(keys.map((k) => INTENTS[k].type))];
+  assert.ok(types.every((t) => ['write', 'read', 'action'].includes(t)), '意图类型受限于 write/read/action');
+  // N3 不越权执行：危险操作显式标记 danger（parse 生成计划 → exec 双确认）
+  assert.equal(INTENTS['risk.delete']?.danger, true, '删除风险标 danger（双确认）');
+  assert.ok(keys.filter((k) => INTENTS[k].danger).length === 1, '仅危险操作标 danger（避免过度确认）');
+  // N3：白名单外输入不越权执行，回落自由问答（mock 下「帮我决定…」不匹配任何意图）
+  const out = await parse('帮我决定这个方案选 A 还是 B', { tab: 'coach' });
+  assert.equal(out.kind, 'chat', '决策类请求不被执行为动作，回落自由问答（N1 决策权归用户）');
 });

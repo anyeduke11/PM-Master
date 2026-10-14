@@ -63,7 +63,7 @@ export function cfg(key) {
   return env !== undefined ? env : def.default;
 }
 
-// 全量视图（GET /api/settings）：值 + 来源标注（前端 B/E 区渲染）
+// 全量视图（GET /api/v2/settings）：值 + 来源标注（前端 B/E 区渲染）
 export function allSettings() {
   return Object.entries(DEFAULTS).map(([key, def]) => {
     const kv = coerce(def, getRaw(key));
@@ -78,7 +78,7 @@ export function allSettings() {
   });
 }
 
-// 校验并归一化写入值（PUT /api/settings）；非法即 400（fail loud）
+// 校验并归一化写入值（PUT /api/v2/settings）；非法即 400（fail loud）
 // 全类型统一：val=null → 返回 null 表示删除 KV 行（恢复 env/默认）
 function validate(def, val) {
   if (val === null) return null;

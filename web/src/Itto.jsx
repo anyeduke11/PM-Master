@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconSchool } from '@tabler/icons-react';
+import { api } from './api.js';
 
 // R2.2 ITTO 知识库：三源（PMBOK/PRINCE2/GB-T 41831）过程-输入-工具-输出对照 + 工具实操练习（AI 判分）
 const SRC_LABEL = { pmbok: 'PMBOK', prince2: 'PRINCE2', gbt41831: 'GB/T 41831' };
@@ -48,22 +49,15 @@ export default function Itto() {
   const [feynText, setFeynText] = useState('');
   const [feynRes, setFeynRes] = useState(null);
 
-  async function j(url, opts) {
-    const r = await fetch(url, opts);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  }
   const fail = (e) => setErr(e.message || String(e));
-  const loadHist = () => j('/api/itto/practice/history?limit=10').then(setHist).catch(() => {});
-  const loadMx = () => j('/api/itto/mastery-matrix').then(setMx).catch(() => {});
+  const loadHist = () => api.get('/api/v2/itto/practice/history?limit=10').then(setHist).catch(() => {});
+  const loadMx = () => api.get('/api/v2/itto/mastery-matrix').then(setMx).catch(() => {});
 
   // M3 能教授 → 一键沉淀为知识贡献证据（幂等，服务端已沉淀则回原证据）
   async function promote(toolId) {
     if (mxBusy) return;
     setMxBusy(true);
-    try { await j('/api/itto/mastery/evidence', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool_id: toolId }),
-    }); await loadMx(); } catch (e) { fail(e); }
+    try { await api.post('/api/v2/itto/mastery/evidence', { tool_id: toolId }); await loadMx(); } catch (e) { fail(e); }
     setMxBusy(false);
   }
 
@@ -72,9 +66,7 @@ export default function Itto() {
     if (tutorBusy) return;
     setTutorBusy(true); setTutor(null); setTutorAnswer(''); setFeynRes(null); setFeynText('');
     try {
-      const r = await j('/api/itto/tutor/start', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool_id: toolId }),
-      });
+      const r = await api.post('/api/v2/itto/tutor/start', { tool_id: toolId });
       setTutor(r); setErr('');
     } catch (e) { fail(e); }
     setTutorBusy(false);
@@ -83,10 +75,7 @@ export default function Itto() {
     if (!tutor || tutorBusy) return;
     setTutorBusy(true);
     try {
-      const r = await j('/api/itto/tutor/advance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tutor.token, answer: answer ?? '' }),
-      });
+      const r = await api.post('/api/v2/itto/tutor/advance', { token: tutor.token, answer: answer ?? '' });
       setTutor({ ...tutor, ...r }); setTutorAnswer('');
     } catch (e) { fail(e); }
     setTutorBusy(false);
@@ -95,18 +84,15 @@ export default function Itto() {
     if (!tutor || !feynText.trim() || tutorBusy) return;
     setTutorBusy(true);
     try {
-      setFeynRes(await j('/api/itto/tutor/feynman', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tutor.token, explanation: feynText }),
-      }));
+      setFeynRes(await api.post('/api/v2/itto/tutor/feynman', { token: tutor.token, explanation: feynText }));
       loadMx();   // 费曼合格可能把该工具升到 M3
     } catch (e) { fail(e); }
     setTutorBusy(false);
   }
 
   useEffect(() => {
-    j('/api/itto/overview').then(setOv).catch(fail);
-    j('/api/itto/processes').then((ps) => { setProcs(ps); if (ps.length) setOpenKa(ps[0].ka); }).catch(fail);
+    api.get('/api/v2/itto/overview').then(setOv).catch(fail);
+    api.get('/api/v2/itto/processes').then((ps) => { setProcs(ps); if (ps.length) setOpenKa(ps[0].ka); }).catch(fail);
     loadHist();
     loadMx();
   }, []);
@@ -117,7 +103,7 @@ export default function Itto() {
     const t = setTimeout(async () => {
       if (!kw) { setTools(null); setToolBusy(false); return; }
       setToolBusy(true);
-      try { setTools(await j(`/api/itto/tools?q=${encodeURIComponent(kw)}`)); }
+      try { setTools(await api.get(`/api/v2/itto/tools?q=${encodeURIComponent(kw)}`)); }
       catch (e) { fail(e); setTools([]); }
       setToolBusy(false);
     }, 400);
@@ -137,7 +123,7 @@ export default function Itto() {
 
   async function loadDetail(id) {
     setSelId(id); setDetailBusy(true);
-    try { setDetail(await j(`/api/itto/processes/${id}`)); } catch (e) { fail(e); setDetail(null); }
+    try { setDetail(await api.get(`/api/v2/itto/processes/${id}`)); } catch (e) { fail(e); setDetail(null); }
     setDetailBusy(false);
   }
 
@@ -150,9 +136,7 @@ export default function Itto() {
     if (!selId || genBusy) return;
     setGenBusy(true); setPrac(null); setResult(null); setAnswer('');
     try {
-      setPrac(await j('/api/itto/practice/generate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: selId }),
-      }));
+      setPrac(await api.post('/api/v2/itto/practice/generate', { process_id: selId }));
     } catch (e) { fail(e); }
     setGenBusy(false);
   }
@@ -161,9 +145,7 @@ export default function Itto() {
     if (!prac || !answer.trim() || subBusy) return;
     setSubBusy(true);
     try {
-      setResult(await j('/api/itto/practice/submit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: prac.token, answer }),
-      }));
+      setResult(await api.post('/api/v2/itto/practice/submit', { token: prac.token, answer }));
       loadHist();
     } catch (e) { fail(e); }
     setSubBusy(false);
@@ -188,7 +170,7 @@ export default function Itto() {
         )}
       </div>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '290px 1fr', gap: 14, minHeight: 0, overflow: 'hidden' }}>
+      <div className="split" style={{ flex: 1, display: 'grid', gridTemplateColumns: '290px 1fr', gap: 14, minHeight: 0, overflow: 'hidden' }}>
         {/* 左栏：10 知识域手风琴 */}
         <div className="card" style={{ overflow: 'auto' }}>
           {kaList.length === 0 && <small style={{ color: 'var(--ink3)' }}>暂无过程数据（等待知识库装载）</small>}
@@ -316,7 +298,7 @@ export default function Itto() {
           {/* R3.4 WP6 掌握度矩阵：工具（四步教学）与卡片（SM-2）共用同一 M0-M3 口径 */}
           <div className="card">
             <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-              <span>掌握度矩阵 · M0—M3</span>
+              <span>掌握度矩阵 · M0-M3</span>
               <small style={{ fontWeight: 400, color: 'var(--ink3)' }}>
                 已开课工具 {mx?.summary?.taught_tools ?? 0}/{mx?.summary?.tool_total ?? 0} · M3 {mx?.summary?.m3_items ?? 0} 项
               </small>

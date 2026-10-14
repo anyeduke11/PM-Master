@@ -389,6 +389,17 @@ try { db.exec('ALTER TABLE knowledge_cards ADD COLUMN evidence_id INTEGER'); } c
 try { db.exec('ALTER TABLE llm_calls ADD COLUMN prompt_tokens INTEGER'); } catch { /* 已存在 */ }
 try { db.exec('ALTER TABLE llm_calls ADD COLUMN completion_tokens INTEGER'); } catch { /* 已存在 */ }
 try { db.exec('ALTER TABLE llm_calls ADD COLUMN total_tokens INTEGER'); } catch { /* 已存在 */ }
+// R7.1 记忆分层分级：memories 四维度（scope/horizon/level/category）+ 项目域 + 生命周期（expires_at/hits/last_hit）
+// 旧行靠 DEFAULT 回填（user/long/2/fact），无数据搬迁；唯一性仍由代码层保证（ADD COLUMN 不能带 UNIQUE）
+try { db.exec('ALTER TABLE memories ADD COLUMN scope      TEXT    NOT NULL DEFAULT \'user\''); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN horizon    TEXT    NOT NULL DEFAULT \'long\''); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN level      INTEGER NOT NULL DEFAULT 2'); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN category   TEXT    NOT NULL DEFAULT \'fact\''); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN project_id INTEGER'); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN expires_at TEXT'); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN hits       INTEGER NOT NULL DEFAULT 0'); } catch { /* 已存在 */ }
+try { db.exec('ALTER TABLE memories ADD COLUMN last_hit   TEXT'); } catch { /* 已存在 */ }
+db.exec('CREATE INDEX IF NOT EXISTS idx_mem_scope ON memories(scope, project_id, horizon, level DESC, pinned DESC, id DESC)');
 
 // ===== R7.0 P1：assistant_prefs 债务清偿——summary 列 PREFS:: hack 一次性迁移至 settings KV =====
 // 迁移后 summary 列归还原生语义（动态上下文摘要，P4 蒸馏画像写入）；幂等：无 PREFS:: 前缀即跳过

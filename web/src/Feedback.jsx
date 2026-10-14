@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { IconMessageCircle } from '@tabler/icons-react';
+import { api } from './api.js';
 
 // R6.1 C1 使用反馈轻入口：rating 1-5 + tag + 正文；两处挂载（AI 对话页 / 成长记录页），source 由挂载点传入
 const TAGS = ['bug', '体验', '建议', '其他'];
@@ -14,10 +15,8 @@ export default function Feedback({ source }) {
   async function submit() {
     if (!form.content.trim() || busy) return;
     setErr(''); setBusy(true);
-    const r = await fetch('/api/feedback', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source, ...form }),
-    }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+    const r = await api.post('/api/v2/feedback', { source, ...form })
+      .catch((e) => ({ error: String(e) }));
     setBusy(false);
     if (r.error) { setErr(r.error); return; }
     setDone(r); setForm({ rating: null, tag: '建议', content: '' });

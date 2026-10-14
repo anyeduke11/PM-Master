@@ -12,12 +12,15 @@ import Assistant from './Assistant.jsx';
 import Bell from './Bell.jsx';
 import Settings from './Settings.jsx';
 import { ToastHost } from './ui.jsx';
+import { api } from './api.js';
+import { useHashTab } from './router.js';
 
 const LVN = { 1: '辅助人员', 2: '初级', 3: '中级', 4: '高级', 5: '专家级' };
 
 // R6.8 导航：Tabler 图标（替代 emoji，跨浏览器一致渲染）
+// v5.20.0：M2「教练室」更名「演练场」（与统一角色短标签「教练」区隔；tab id / hash 深链 `#/coach` 不变）
 const TABS = [
-  ['coach', '教练室', IconCompass],
+  ['coach', '演练场', IconCompass],
   ['work', '项目工作台', IconLayoutDashboard],
   ['ra', '风险评估', IconShieldCheck],
   ['records', '成长记录', IconHistory],
@@ -28,7 +31,7 @@ const TABS = [
 ];
 
 export default function App() {
-  const [tab, setTab] = useState('coach');
+  const [tab, setTab] = useHashTab('coach');
   const [autoScenario, setAutoScenario] = useState(null);   // 预警→教练闭环跳转
   const [profile, setProfile] = useState(null);
   const [projCtx, setProjCtx] = useState(null);      // 工作台选中项目 → 助手页面上下文
@@ -36,7 +39,7 @@ export default function App() {
   const [theme, setTheme] = useState(document.documentElement.dataset.theme || 'dark');   // R6.7 双主题
 
   useEffect(() => {
-    fetch('/api/profile').then((r) => r.json()).then(setProfile);
+    api.get('/api/v2/profile').then(setProfile);
   }, []);
 
   // R7.0 P5：Settings 派发 pm-import-prefill → 切工作台并携带草稿（Workbench 条件渲染，须在此中转）
@@ -49,13 +52,13 @@ export default function App() {
     return () => window.removeEventListener('pm-import-prefill', h);
   }, []);
 
-  // R7.0 P1：设置应用——减少动效开关；默认主题仅在用户从未手动切换时生效（localStorage 无 pm-theme）
+  // R7.0 P1：设置应用，减少动效开关；默认主题仅在用户从未手动切换时生效（localStorage 无 pm-theme）
   useEffect(() => {
     const applyMotion = (on) => {
       if (on) document.documentElement.dataset.reduceMotion = '1';
       else delete document.documentElement.dataset.reduceMotion;
     };
-    fetch('/api/settings').then((r) => r.json()).then((list) => {
+    api.get('/api/v2/settings').then((list) => {
       const m = Object.fromEntries(list.map((s) => [s.key, s.effective]));
       applyMotion(Boolean(m['ui.reduce_motion']));
       let stored = null;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { IconBulb, IconPlus, IconUpload } from '@tabler/icons-react';
 import { toast, Modal, Field } from './ui.jsx';
 import Import from './Import.jsx';
+import { api } from './api.js';
 
 // P2 项目工作台：项目列表 + 四件套（周报/风险/干系人/会议）+ 容差预警黄金闭环
 // R2.4：W1.3 智能关联提示卡（新风险/超容差时工具提示）+ W3.3 组合视角 tab
@@ -36,13 +37,13 @@ export default function Workbench({ goCoach, onContext, importPrefill }) {
   useEffect(() => { if (tab === 'combo' && !portfolio) loadPortfolio(); }, [tab]);
 
   async function loadProjects() {
-    const ps = await fetch('/api/projects').then((r) => r.json());
+    const ps = await api.get('/api/v2/projects');
     setProjects(ps);
     if (!pid && ps.length) setPid(ps[0].id);
   }
-  async function loadAlerts() { setAlerts(await fetch('/api/alerts').then((r) => r.json())); }
+  async function loadAlerts() { setAlerts(await api.get('/api/v2/projects/alerts')); }
   async function loadPortfolio() {
-    const d = await fetch('/api/portfolio').then((r) => r.json());
+    const d = await api.get('/api/v2/projects/portfolio');
     setPortfolio(d);
     setBenefitDraft(Object.fromEntries(d.items.map((p) => [p.id, {
       target: p.benefit?.target ?? '', actual: p.benefit?.actual ?? '',
@@ -51,39 +52,32 @@ export default function Workbench({ goCoach, onContext, importPrefill }) {
   // R3.3 收益填写（空串→null 清空；服务端数字校验）
   async function saveBenefit(id) {
     const dft = benefitDraft[id] ?? {};
-    const res = await fetch(`/api/projects/${id}/benefit`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ benefit_target: dft.target, benefit_actual: dft.actual }),
-    });
-    if (!res.ok) { setBenefitErr('收益保存失败（须为数字）'); return; }
+    try {
+      await api.post(`/api/v2/projects/${id}/benefit`, { benefit_target: dft.target, benefit_actual: dft.actual });
+    } catch { setBenefitErr('收益保存失败（须为数字）'); return; }
     setBenefitErr(null);
     loadPortfolio();
   }
   async function loadAll(id) {
-    const arts = await fetch(`/api/projects/${id}/artifacts`).then((r) => r.json());
+    const arts = await api.get(`/api/v2/projects/${id}/artifacts`);
     setWeekly(arts[0] ?? null);
-    setRisks(await fetch(`/api/projects/${id}/risks`).then((r) => r.json()));
-    setStakes(await fetch(`/api/projects/${id}/stakeholders`).then((r) => r.json()));
-    setMeetings(await fetch(`/api/projects/${id}/meetings`).then((r) => r.json()));
+    setRisks(await api.get(`/api/v2/projects/${id}/risks`));
+    setStakes(await api.get(`/api/v2/projects/${id}/stakeholders`));
+    setMeetings(await api.get(`/api/v2/projects/${id}/meetings`));
     loadAlerts();
   }
 
   // 新建项目（Modal 表单提交；payload 与原 prompt 版一致）
   async function createProject() {
     const name = newName.trim(); if (!name) return;
-    const p = await fetch('/api/projects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, complexity: 'complex' }),
-    }).then((r) => r.json());
+    const p = await api.post('/api/v2/projects', { name, complexity: 'complex' });
     setShowNew(false); setNewName('');
     await loadProjects(); setPid(p.id);
   }
 
   async function genWeekly() {
     setBusy(true);
-    const d = await fetch(`/api/projects/${pid}/weekly`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evmIn),
-    }).then((r) => r.json());
+    const d = await api.post(`/api/v2/projects/${pid}/weekly`, evmIn);
     setWeekly({ id: d.id, content: d.markdown, evm: d.evm });
     setHints(d.hints?.length ? d.hints : null);   // W1.3：超容差 → 根因工具提示
     await loadAlerts(); setBusy(false);
@@ -93,9 +87,9 @@ export default function Workbench({ goCoach, onContext, importPrefill }) {
   async function exportFeishu() {
     if (!weekly?.content) return;
     setBusy(true);
-    const st = await fetch('/api/feishu/status').then((r) => r.json());
+    const st = await api.get('/api/v2/feishu/status');
     if (st.configured) {
-      const r = await fetch('/api/feishu/export-doc', {
+      const r = await fetch('/api/v2/feishu/export-doc', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: `${proj?.name ?? '项目'} 周报 · ${new Date().toISOString().slice(0, 10)}`, markdown: weekly.content }),
       }).then((r) => r.json());
@@ -114,58 +108,44 @@ export default function Workbench({ goCoach, onContext, importPrefill }) {
 
   async function addRisk() {
     if (!forms.risk.trim()) return;
-    const d = await fetch(`/api/projects/${pid}/risks`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: forms.risk, probability: 0.5, impact: 0.7, strategy: '减轻(PMP)×风险应对(PR2)' }),
-    }).then((r) => r.json());
+    const d = await api.post(`/api/v2/projects/${pid}/risks`, { title: forms.risk, probability: 0.5, impact: 0.7, strategy: '减轻(PMP)×风险应对(PR2)' });
     setHints(d.hints?.length ? d.hints : null);   // W1.3：新风险 → 定量分析工具提示
     setForms({ ...forms, risk: '' }); loadAll(pid);
   }
   async function secondOrder(id) {
     setBusy(true);
-    const r = await fetch(`/api/risks/${id}/second-order`, { method: 'POST' }).then((r) => r.json());
+    const r = await api.post(`/api/v2/projects/risks/${id}/second-order`);
     setSoOut(r);   // 结果进 Modal 展示
     setBusy(false); loadAll(pid);
   }
   async function toIssue(id) {
-    await fetch(`/api/risks/${id}/to-issue`, { method: 'POST' }); loadAll(pid);
+    await api.post(`/api/v2/projects/risks/${id}/to-issue`); loadAll(pid);
   }
   async function addStake() {
     if (!forms.stake.trim()) return;
-    await fetch(`/api/projects/${pid}/stakeholders`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: forms.stake, power: 8, interest: 3, current_engagement: '中立', desired_engagement: '支持' }),
-    });
+    await api.post(`/api/v2/projects/${pid}/stakeholders`, { name: forms.stake, power: 8, interest: 3, current_engagement: '中立', desired_engagement: '支持' });
     setForms({ ...forms, stake: '' }); loadAll(pid);
   }
   async function addMeeting() {
     if (!forms.meeting.trim()) return;
     const actions = forms.action.trim()
       ? [{ title: forms.action, owner: '我', due_date: '2026-10-15' }] : [];
-    await fetch(`/api/projects/${pid}/meetings`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: forms.meeting, actions }),
-    });
+    await api.post(`/api/v2/projects/${pid}/meetings`, { title: forms.meeting, actions });
     setForms({ ...forms, meeting: '', action: '' }); loadAll(pid);
   }
   async function toggleAction(id, status) {
-    const d = await fetch(`/api/actions/${id}/status`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: status === 'done' ? 'open' : 'done' }),
-    }).then((r) => r.json());
+    const d = await api.post(`/api/v2/projects/actions/${id}/status`, { status: status === 'done' ? 'open' : 'done' });
     loadAll(pid);
   }
   async function ackAlert(id) {
-    await fetch(`/api/alerts/${id}/ack`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"status":"acknowledged"}',
-    });
+    await api.post(`/api/v2/projects/alerts/${id}/ack`, { status: 'acknowledged' });
     loadAlerts();
   }
 
   const proj = projects.find((p) => p.id === pid);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 14, height: '100%' }}>
+    <div className="split" style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 14, height: '100%' }}>
       <div className="card" style={{ overflow: 'auto' }}>
         <h3>在管项目 <button className="mini" onClick={() => setShowImport(true)} title="数据流入：粘贴导入 EVM/风险/会议/干系人"><IconUpload size={13} stroke={1.8} /></button><button className="mini" onClick={() => setShowNew(true)} title="新建项目"><IconPlus size={14} stroke={2} /></button></h3>
         {projects.map((p) => (
@@ -323,11 +303,11 @@ export default function Workbench({ goCoach, onContext, importPrefill }) {
                           const lvl = ti + pi;   // 越靠右上越热
                           return (
                             <div key={pi} style={{
-                              minHeight: 56, borderRadius: 6, padding: 4,
+                              minHeight: 56, borderRadius: 'var(--r-sm)', padding: 4,
                               background: lvl >= 3 ? 'var(--danger-soft)' : lvl === 2 ? 'var(--warn-soft)' : 'var(--surface-2)',
                             }}>
                               {list.length === 0
-                                ? <span style={{ color: 'var(--ink3)' }}>—</span>
+                                ? <span style={{ color: 'var(--ink3)' }}>-</span>
                                 : list.map((r, i) => (
                                   <div key={i} style={{ lineHeight: 1.5 }} title={`${r.project_name} · P${r.probability}×I${r.impact}`}>
                                     {r.is_issue && <span style={{ color: 'var(--warn)' }}>!</span>} {r.title.slice(0, 12)}<small style={{ color: 'var(--ink3)' }}>（{r.project_name}）</small>
@@ -351,11 +331,11 @@ export default function Workbench({ goCoach, onContext, importPrefill }) {
                           const lvl = ti + pi;   // 越靠右上越热
                           return (
                             <div key={pi} style={{
-                              minHeight: 48, borderRadius: 6, padding: 4,
+                              minHeight: 48, borderRadius: 'var(--r-sm)', padding: 4,
                               background: lvl >= 3 ? 'var(--danger-soft)' : lvl === 2 ? 'var(--warn-soft)' : 'var(--surface-2)',
                             }}>
                               {list.length === 0
-                                ? <span style={{ color: 'var(--ink3)' }}>—</span>
+                                ? <span style={{ color: 'var(--ink3)' }}>-</span>
                                 : list.map((r, i) => (
                                   <div key={i} style={{ lineHeight: 1.5 }} title={`${r.projects.join('、')} · 开放 ${r.open_actions} / 完成 ${r.done_actions}${r.high_power ? ` · 高权力干系人 ${r.high_power}` : ''}`}>
                                     {r.project_count >= 2 && <span style={{ color: 'var(--warn)' }}>!</span>} {r.name}<small style={{ color: 'var(--ink3)' }}>（{r.project_count}项目·{r.open_actions}开放）</small>

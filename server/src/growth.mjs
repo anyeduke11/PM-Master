@@ -269,7 +269,7 @@ export function monthlyReport() {
     '',
     ...(cur.competency_gaps?.length ? [`- 素质差距：${cur.competency_gaps.join('、')}`] : []),
     ...(cur.experience_gaps?.length ? [`- 经验缺口：${cur.experience_gaps.join('、')}`] : []),
-    '- 建议：差距项对应教练场景实战（教练室）+ 知识域工具实操（知识库）+ 情景题保持手感（强化营）。',
+    '- 建议：差距项对应教练场景实战（演练场）+ 知识域工具实操（知识库）+ 情景题保持手感（强化营）。',
     '',
     '## 四、下月训练任务',
     '',

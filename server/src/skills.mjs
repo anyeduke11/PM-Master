@@ -9,7 +9,7 @@ import { notFound, badRequest } from './errors.mjs';
 // purpose → 中文能力名/分组/模型档/一句话说明（与 agent.mjs 各 callJSON 的 purpose 严格对齐；
 // tier: strong=默认强模型 / fast=llm.model_fast；新增 purpose 时此处必须同步登记——J12 全等断言兜底）
 export const REGISTRY = [
-  { id: 'coach', label: '教练室对话', group: '教练与评定', tier: 'strong', desc: 'GROW 多轮教练推进的话术生成' },
+  { id: 'coach', label: '演练场对话', group: '教练与评定', tier: 'strong', desc: 'GROW 多轮教练推进的话术生成' },
   { id: 'coach_will', label: '意志力判定', group: '教练与评定', tier: 'strong', desc: '会话结束意愿与档案更新判断' },
   { id: 'rating', label: '能力评定', group: '教练与评定', tier: 'strong', desc: '教练证据 → 指标分级建议' },
   { id: 'onboard', label: '入职画像', group: '教练与评定', tier: 'strong', desc: '首次使用引导的档案生成' },
@@ -42,7 +42,7 @@ export function skillEnabled(purpose) {
   return row?.value !== '0';
 }
 
-// 全量视图（GET /api/skills）：注册表 + 启停 + 全时段统计
+// 全量视图（GET /api/v2/settings/skills）：注册表 + 启停 + 全时段统计
 export function listSkills() {
   const agg = new Map();   // purpose → {calls, ok_calls, ms, tokens}（provider 合并）
   for (const r of db.prepare(`SELECT purpose, COUNT(*) calls, SUM(ok) ok_calls, SUM(ms) ms,
@@ -62,7 +62,7 @@ export function listSkills() {
   });
 }
 
-// 启停写入（PUT /api/skills/:id {enabled}）：val=null 清除覆盖回默认启用
+// 启停写入（PUT /api/v2/settings/skills/:id {enabled}）：val=null 清除覆盖回默认启用
 export function setSkillEnabled(id, enabled) {
   if (!known(id)) throw notFound(`未登记的能力：${id}`);
   const k = skillKey(id);

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IconLock } from '@tabler/icons-react';
+import { api } from './api.js';
 
 const PHASE_META = { G: '目标', R: '现状', O: '选项', W: '行动', E: '评定' };
 
@@ -14,17 +15,17 @@ export default function CoachRoom({ autoStart, onConsumed }) {
   const boxRef = useRef(null);
   const autoRef = useRef(null);
 
-  useEffect(() => { fetch('/api/coach/scenarios').then((r) => r.json()).then(setScenarios); loadSessions(); }, []);
+  useEffect(() => { api.get('/api/v2/coach/scenarios').then(setScenarios); loadSessions(); }, []);
   useEffect(() => { boxRef.current?.scrollTo(0, boxRef.current.scrollHeight); }, [msgs]);
 
   async function loadSessions() {
-    setSessions(await fetch('/api/coach/sessions').then((r) => r.json()));
+    setSessions(await api.get('/api/v2/coach/sessions'));
   }
 
   // 恢复会话：服务端状态原样回灌（pi tree 思路的单线版：DB 即真相）
   async function resume(id) {
     setBusy(true);
-    const v = await fetch(`/api/coach/sessions/${id}`).then((r) => r.json());
+    const v = await api.get(`/api/v2/coach/sessions/${id}`);
     setSession(v);
     setClosing(v.closed ? { ratings: v.rating ?? [], evidence_id: null } : null);
     setMsgs([
@@ -55,10 +56,7 @@ export default function CoachRoom({ autoStart, onConsumed }) {
 
   async function start(id) {
     setBusy(true); setClosing(null); setMsgs([]);
-    const v = await fetch('/api/coach/sessions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario: id, mode: 'fast' }),
-    }).then((r) => r.json());
+    const v = await api.post('/api/v2/coach/sessions', { scenario: id, mode: 'fast' });
     applyView(v);
     loadSessions();
     setBusy(false);
@@ -73,20 +71,14 @@ export default function CoachRoom({ autoStart, onConsumed }) {
     }
     setInput(''); setBusy(true);
     setMsgs((m) => [...m, { role: 'user', content: text }]);
-    const v = await fetch(`/api/coach/sessions/${session.id}/messages`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text }),
-    }).then((r) => r.json());
+    const v = await api.post(`/api/v2/coach/sessions/${session.id}/messages`, { content: text });
     if (v.last_reply) applyView(v); else setSession(v);
     setBusy(false);
   }
 
   async function ctl(cmd) {
     setInput(''); setBusy(true);
-    const v = await fetch(`/api/coach/sessions/${session.id}/control`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cmd }),
-    }).then((r) => r.json());
+    const v = await api.post(`/api/v2/coach/sessions/${session.id}/control`, { cmd });
     applyView(v, v.note || null);
     setBusy(false);
   }
@@ -94,9 +86,7 @@ export default function CoachRoom({ autoStart, onConsumed }) {
   async function close() {
     if (!session || session.closed) return;
     setBusy(true);
-    const c = await fetch(`/api/coach/sessions/${session.id}/close`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-    }).then((r) => r.json());
+    const c = await api.post(`/api/v2/coach/sessions/${session.id}/close`, {});
     setClosing(c);
     setSession((s) => ({ ...s, closed: true }));
     setMsgs((m) => [...m, { role: 'system', content: `会话已归档：评分流水 ${c.ratings.length} 条 · 证据 #${c.evidence_id}（可在成长记录查看）` }]);
@@ -107,9 +97,10 @@ export default function CoachRoom({ autoStart, onConsumed }) {
   const phase = session?.phase ?? 'G';
   const stepIdx = session?.step ?? 0;
   const steps = session?.steps ?? [];
+  const indicators = scenarios.find((s) => s.id === session?.scenario)?.indicators ?? [];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr 250px', gap: 14, height: '100%' }}>
+    <div className="split" style={{ display: 'grid', gridTemplateColumns: '230px 1fr 270px', gridTemplateRows: 'minmax(0, 1fr)', gap: 14, height: '100%' }}>
       {/* 场景 */}
       <div className="card">
         <h3>PM 教练场景（随等级解锁）</h3>
@@ -133,7 +124,7 @@ export default function CoachRoom({ autoStart, onConsumed }) {
             {sessions.filter((x) => !x.open).slice(0, 8).map((x) => (
               <div key={x.id} className={`sc ${session?.id === x.id ? 'sel' : ''}`} onClick={() => resume(x.id)} style={{ cursor: 'pointer' }}>
                 <b>#{x.id} {x.scenario}</b>
-                <small>{(x.rating ?? []).map((r) => `${r.indicator}:${r.grade}`).join(' ') || '—'} · {x.started_at?.slice(5, 16)}</small>
+                <small>{(x.rating ?? []).map((r) => `${r.indicator}:${r.grade}`).join(' ') || '-'} · {x.started_at?.slice(5, 16)}</small>
               </div>
             ))}
           </>
@@ -157,13 +148,13 @@ export default function CoachRoom({ autoStart, onConsumed }) {
             {session.phase}-{stepIdx + 1}/{steps.length} · {steps[stepIdx]}
           </div>
         )}
-        <div id="msgs" ref={boxRef} style={{ flex: 1, overflow: 'auto', marginTop: 6 }}>
+        <div id="msgs" ref={boxRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', marginTop: 6 }}>
           {msgs.length === 0 && <div className="m sys">← 选择场景开始 GROW 教练（默认快速模式；/fast /skip /back /status 可用）</div>}
           {msgs.map((m, i) => <div key={i} className={`m ${m.role === 'user' ? 'me' : m.role === 'system' ? 'sys' : 'ai'}`}>{m.content}</div>)}
           {closing && (
             <div className="m ai">
               <b>【E · 会话评定（依据引用）】</b>{'\n'}
-              {closing.ratings.map((r, i) => `▸ ${r.indicator}：${r.grade} —— ${r.evidence}`).join('\n')}
+              {closing.ratings.map((r, i) => `▸ ${r.indicator}：${r.grade} · ${r.evidence}`).join('\n')}
               {'\n\n'}{closing.evidence_id ? `产物已归档成长记录（#${closing.evidence_id}）· 行为分流水已写入雷达数据源。` : '（归档会话只读回看）'}
             </div>
           )}
@@ -180,27 +171,45 @@ export default function CoachRoom({ autoStart, onConsumed }) {
         </div>
       </div>
 
-      {/* 数据面板 */}
+      {/* 数据面板 · 会话遥测 */}
       <div className="card">
-        <h3>会话数据（自动收集）</h3>
-        <pre style={{ minHeight: 200 }}>
-{session ? JSON.stringify({
-  scenario: session.scenario, mode: session.mode, phase, step: `${stepIdx + 1}/${Math.max(steps.length, 1)}`,
-  collected: Object.keys(session.collected ?? {}).length ? session.collected : '（收集中）',
-}, null, 1) : '（未开始）'}
-        </pre>
-        {session && <h3 style={{ marginTop: 10 }}>训练指标</h3>}
-        {session && (
-          <div>
-            {(scenarios.find((s) => s.id === session.scenario)?.indicators ?? []).map((i) => (
-              <span key={i} className="pill">{i}</span>
-            ))}
-          </div>
+        <h3>会话数据 <span className="tel-tag">自动收集</span></h3>
+        {!session ? (
+          <div className="empty">选择左侧场景开始后，这里实时显示会话状态与自动提炼的要点</div>
+        ) : (
+          <>
+            <div className="tel-grid">
+              <div className="tel-cell"><span>场景</span><b>{session.scenario}</b></div>
+              <div className="tel-cell"><span>模式</span><b>{session.mode === 'fast' ? '快速' : '标准'}</b></div>
+              <div className="tel-cell"><span>阶段</span><b>{PHASE_META[phase]} · {phase}</b></div>
+              <div className="tel-cell"><span>步进</span><b>{steps.length ? `${stepIdx + 1}/${steps.length}` : '-'}</b></div>
+            </div>
+            {steps[stepIdx] && <div className="tel-topic">当前：{steps[stepIdx]}</div>}
+
+            <h3 style={{ marginTop: 14 }}>自动提炼要点</h3>
+            {Object.keys(session.collected ?? {}).length ? (
+              <div className="tel-kv">
+                {Object.entries(session.collected).map(([k, v]) => (
+                  <div className="kv" key={k}><b>{k}</b><p>{String(v)}</p></div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty">尚未提炼（随对话自动收集目标 / 事实 / 根因）</div>
+            )}
+
+            {indicators.length > 0 && (
+              <>
+                <h3 style={{ marginTop: 14 }}>训练指标</h3>
+                <div>{indicators.map((i) => <span key={i} className="pill">{i}</span>)}</div>
+              </>
+            )}
+          </>
         )}
-        <h3 style={{ marginTop: 12 }}>流程控制</h3>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+
+        <h3 style={{ marginTop: 14 }}>流程控制</h3>
+        <div className="tel-ctl">
           {[['skip', '/skip'], ['back', '/back'], ['fast', '/fast'], ['status', '/status']].map(([c, l]) => (
-            <button key={c} className="mini" onClick={() => session && ctl(c)}>{l}</button>
+            <button key={c} className="mini" disabled={!session || session.closed} onClick={() => ctl(c)}>{l}</button>
           ))}
         </div>
       </div>

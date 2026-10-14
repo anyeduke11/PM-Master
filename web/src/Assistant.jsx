@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IconSparkles, IconRobot, IconChevronRight, IconAlertTriangle, IconBulb, IconDownload } from '@tabler/icons-react';
+import { api } from './api.js';
 
 // R2.1 全局 AI 助手：NL → 意图 → 计划 → 确认 → 执行（服务端 assistant.mjs 执行，AI 不直接摸库）
-// R6.6 AI 面整合：侧栏为唯一 AI 面（原「AI 对话」tab 并入）——自由问答 SSE 流式 + 对话日志持久化（载入/清空双确认）
-const INTRO = { role: 'sys', content: 'AI 助手 · ⌘K/Ctrl+K 唤起。一句话完成查询与操作，如「给经营分析看板登记风险：核心工程师离职」' };
+// R6.6 AI 面整合：侧栏为唯一 AI 面（原「AI 对话」tab 并入），自由问答 SSE 流式 + 对话日志持久化（载入/清空双确认）
+// PRD §15.0 统一角色「AI 教练助手」（v5.19.2）：面向用户的短标签沿用「教练」（INTRO/侧栏标题/FAB title）
+const INTRO = { role: 'sys', content: '教练 · ⌘K/Ctrl+K 唤起。一句话完成查询与操作，如「给经营分析看板登记风险：核心工程师离职」' };
 
 export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
-  const [open, setOpen] = useState(window.matchMedia?.('(min-width: 769px)').matches ?? true);   // 窄屏默认折叠（R6.2 WP1：FAB 唤起全宽抽屉）
+  const [open, setOpen] = useState(false);   // R7.1 P3：默认收缩（全站一致），由 FAB / ⌘K 唤起；遇问题由浮框提示
   const [msgs, setMsgs] = useState([INTRO]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,7 +22,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   const [quickPrompts, setQuickPrompts] = useState([]);   // R7.0 P3 I1：启用的快捷提示词（点击填入输入区）
 
   useEffect(() => {
-    const load = () => fetch('/api/prompts?enabled=1').then((r) => r.ok ? r.json() : []).then((ps) => setQuickPrompts(Array.isArray(ps) ? ps : [])).catch(() => {});
+    const load = () => api.get('/api/v2/settings/prompts?enabled=1').then((ps) => setQuickPrompts(Array.isArray(ps) ? ps : [])).catch(() => {});
     load();
     window.addEventListener('pm-prompts', load);   // 设置页保存后即时刷新
     return () => window.removeEventListener('pm-prompts', load);
@@ -50,11 +52,11 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   }, [open]);
 
   // R6.6 mount：载入对话日志（跨刷新持久化；失败不阻塞会话）
-  // R6.6b：计划卡以冻结态回放（令牌不落库——pending 降级为「未确认」，done/canceled 终态原样展示）
+  // R6.6b：计划卡以冻结态回放（令牌不落库，pending 降级为「未确认」，done/canceled 终态原样展示）
   useEffect(() => {
     (async () => {
       try {
-        const hist = await fetch('/api/assistant/messages').then((r) => r.json());
+        const hist = await api.get('/api/v2/assistant/messages');
         if (Array.isArray(hist) && hist.length) {
           setMsgs([INTRO, ...hist.map((h) => {
             if (h.kind === 'plan') {
@@ -74,7 +76,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   useEffect(() => {
     (async () => {
       try {
-        const p = await fetch('/api/profile').then((r) => r.json());
+        const p = await api.get('/api/v2/profile');
         if (p?.assistant_prefs?.suggest_off) { suggestOff.current = true; return; }
       } catch { /* 档案读取失败不阻塞建议 */ }
       loadSuggest();
@@ -89,10 +91,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   // R6.6 落库已完成消息（me/ai 文本与结果、计划卡；错误条为会话内状态，不落库）；返回落库行（计划卡追踪 id 用）
   async function logMsg(m) {
     try {
-      const r = await fetch('/api/assistant/messages', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(m),
-      }).then((x) => x.json());
+      const r = await api.post('/api/v2/assistant/messages', m);
       return r?.id ? r : null;
     } catch { return null; }
   }
@@ -113,7 +112,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   async function loadSuggest() {
     if (suggestOff.current) return;
     try {
-      const d = await fetch('/api/assistant/suggest').then((r) => r.json());
+      const d = await api.get('/api/v2/assistant/suggest');
       setSuggest(d?.suggestion ?? null);
     } catch { /* 静默 */ }
   }
@@ -122,11 +121,8 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
     setSuggest(null);
     suggestOff.current = true;   // 本次会话不再拉取
     try {
-      const p = await fetch('/api/profile').then((r) => r.json());
-      await fetch('/api/profile', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assistant_prefs: { ...(p?.assistant_prefs ?? {}), suggest_off: true } }),
-      });
+      const p = await api.get('/api/v2/profile');
+      await api.put('/api/v2/profile', { assistant_prefs: { ...(p?.assistant_prefs ?? {}), suggest_off: true } });
     } catch { /* 偏好持久化失败不影响本次会话 */ }
   }
 
@@ -136,20 +132,32 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
     else if (action === 'drill' || action === 'growth') onNavigate?.(action);
   }
 
+  // R7.1 P3 浮框：点击「让 AI 分析」→ 展开侧栏并把问题上下文代入对话（记忆注入 + pageContext 生效）
+  function analyzeSuggest() {
+    const text = suggest?.text;
+    setSuggest(null);
+    setOpen(true);
+    if (text) sendText(`分析这个问题并给出应对建议：${text}`);
+  }
+
   async function send() {
     const text = input.trim();
     if (!text || busy) return;
-    setInput(''); setBusy(true);
+    setInput('');
+    await sendText(text);
+  }
+
+  async function sendText(raw) {
+    const text = String(raw ?? '').trim();
+    if (!text || busy) return;
+    setBusy(true);
     const history = msgs
       .filter((m) => (m.role === 'me' || m.role === 'ai') && m.content)
       .map((m) => ({ role: m.role === 'me' ? 'user' : 'assistant', content: m.content }));
     push({ role: 'me', content: text });
     await logMsg({ role: 'me', kind: 'text', content: text });
     try {
-      const d = await fetch('/api/assistant/parse', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, pageContext }),
-      }).then((r) => r.json());
+      const d = await api.post('/api/v2/assistant/parse', { text, pageContext });
       await handleParse(d, [...history, { role: 'user', content: text }]);
     } catch (e) {
       push({ role: 'err', content: `助手服务暂不可用（${e.message}），请稍后再试` });
@@ -166,7 +174,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
     if (d.kind === 'plan') {
       const m = { role: 'plan', plan: d.plan, confirm_token: d.confirm_token, expires_in: d.expires_in, state: 'pending', msgId: null };
       push(m);
-      // R6.6b：计划卡创建即落库（令牌不落库）；终态回写同一行——刷新后冻结回放
+      // R6.6b：计划卡创建即落库（令牌不落库）；终态回写同一行，刷新后冻结回放
       const row = await logMsg({ role: 'ai', kind: 'plan', content: JSON.stringify({ plan: d.plan, state: 'pending' }) });
       if (row) updPlan(m, { msgId: row.id });
       return;
@@ -180,9 +188,9 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
     let full = '';
     let failed = false;
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/v2/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: chatMessages }),
+        body: JSON.stringify({ messages: chatMessages, pageContext }),
       });
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -213,10 +221,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
     updPlan(m, { state });
     if (m.msgId) {
       try {
-        await fetch(`/api/assistant/messages/${m.msgId}/plan-state`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state }),
-        });
+        await api.post(`/api/v2/assistant/messages/${m.msgId}/plan-state`, { state });
       } catch { /* 静默 */ }
     }
   }
@@ -224,10 +229,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
   async function execPlan(m, typedName) {
     setBusy(true);
     try {
-      const r = await fetch('/api/assistant/exec', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(typedName ? { confirm_token: m.confirm_token, typed_name: typedName } : { confirm_token: m.confirm_token }),
-      }).then((r) => r.json());
+      const r = await api.post('/api/v2/assistant/exec', typedName ? { confirm_token: m.confirm_token, typed_name: typedName } : { confirm_token: m.confirm_token });
       if (r?.ok) {
         await setPlanState(m, 'done');
         const rm = resultMsg(r.result, r.payload);
@@ -248,7 +250,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
     if (clearText.trim() !== '清空' || busy) return;
     setBusy(true);
     try {
-      const r = await fetch('/api/assistant/messages?confirm=clear', { method: 'DELETE' }).then((x) => x.json());
+      const r = await api.del('/api/v2/assistant/messages?confirm=clear');
       if (r?.cleared != null) {
         setMsgs([INTRO, { role: 'sys', content: `对话记录已清空（${r.cleared} 条）` }]);
         setClearAsk(false); setClearText('');
@@ -262,7 +264,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
       {open ? (
         <aside className="asst">
           <div className="asst-head">
-            <b><IconSparkles size={14} stroke={1.8}/> AI 助手</b>
+            <b><IconSparkles size={14} stroke={1.8}/> 教练</b>
             <button className="asst-clearbtn" title="清空对话" onClick={() => setClearAsk((v) => !v)}>清空</button>
             <span className="asst-kbd">⌘K</span>
             <button title="折叠" onClick={() => setOpen(false)}><IconChevronRight size={14}/></button>
@@ -307,7 +309,7 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
                     : m.content}
                   {m.action && (
                     <div className="asst-btns asst-cta">
-                      <button className="pri" onClick={() => onCoachStart?.(m.action.scenario)}>进入教练室</button>
+                      <button className="pri" onClick={() => onCoachStart?.(m.action.scenario)}>进入演练场</button>
                     </div>
                   )}
                   {(m.files ?? []).map((f) => (
@@ -351,7 +353,18 @@ export default function Assistant({ pageContext, onCoachStart, onNavigate }) {
           </div>
         </aside>
       ) : (
-        <button className="asst-fab" title="展开 AI 助手（⌘K）" onClick={() => setOpen(true)}><IconRobot size={20} stroke={1.7}/></button>
+        <>
+          {suggest && (
+            <div className="asst-bubble">
+              <small><IconBulb size={13}/><span>{suggest.text}</span></small>
+              <div className="asst-btns">
+                <button className="mini pri" onClick={analyzeSuggest}>让 AI 分析</button>
+              </div>
+              <button className="x" title="关闭提示（不再提示）" onClick={dismissSuggest}>×</button>
+            </div>
+          )}
+          <button className="asst-fab" title="展开教练（⌘K）" onClick={() => setOpen(true)}><IconRobot size={20} stroke={1.7}/></button>
+        </>
       )}
     </>
   );

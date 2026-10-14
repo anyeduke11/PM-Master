@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { IconFileText, IconAlertTriangle } from '@tabler/icons-react';
 import { Modal, Field, toast } from './ui.jsx';
+import { api } from './api.js';
 
 // R7.0 P2 数据流入向导：选类型 → 粘贴/拖入文本 → AI 抽取预览（可逐行编辑/勾选）→ 入库
-// 后端契约：POST /api/import/preview {kind,text} 瞬态；POST /api/import/commit {kind,rows} 服务端重校验为权威
+// 后端契约：POST /api/v2/import/preview {kind,text} 瞬态；POST /api/v2/import/commit {kind,rows} 服务端重校验为权威
 const KINDS = [
   ['evm', 'EVM 度量', 'PV / EV / AC 三数（进度表复制粘贴）'],
   ['risks', '风险登记', '风险标题 + 概率/影响（0-1）'],
@@ -30,12 +31,7 @@ export default function Import({ onClose, onDone, initialText = '' }) {
   async function extract() {
     setBusy(true);
     try {
-      const r = await fetch('/api/import/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, text }),
-      });
-      const out = await r.json();
-      if (!r.ok) throw new Error(out.message ?? `HTTP ${r.status}`);
+      const out = await api.post('/api/v2/import/preview', { kind, text });
       setRows(out.rows);
       setWarnings(out.warnings ?? []);
       setChecked(Object.fromEntries(out.rows.map((row, i) => [i, !row._err])));   // 合法行默认勾选
@@ -48,12 +44,7 @@ export default function Import({ onClose, onDone, initialText = '' }) {
     if (!picked.length) return toast('没有勾选可入库的行', 'warn');
     setBusy(true);
     try {
-      const res = await fetch('/api/import/commit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, rows: picked }),
-      });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out.message ?? `HTTP ${res.status}`);
+      const out = await api.post('/api/v2/import/commit', { kind, rows: picked });
       toast(`入库完成：成功 ${out.inserted} 行${out.skipped ? ` · 跳过 ${out.skipped} 行` : ''}`, out.skipped ? 'warn' : 'ok', 4200);
       onDone?.({ kind, rows: picked, result: out });
       onClose?.();
@@ -109,7 +100,7 @@ export default function Import({ onClose, onDone, initialText = '' }) {
                   <tr key={i}>
                     <td><input type="checkbox" checked={!!checked[i] && !r._err} disabled={Boolean(r._err)}
                       onChange={(e) => setChecked((c) => ({ ...c, [i]: e.target.checked }))} /></td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{r.project_name ?? '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{r.project_name ?? '-'}</td>
                     {COLS[kind].map(([k, , t]) => (
                       <td key={k}>
                         <input type={t === 'n' ? 'number' : 'text'} step={t === 'n' ? 'any' : undefined}

@@ -112,7 +112,7 @@ do_status() {
     c_bad "web     未运行"
   fi
   # 飞书 / LLM 配置
-  fs=$(curl -sf --max-time 3 "$SERVER_URL/api/feishu/status" 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin)["mode"])' 2>/dev/null || echo "-")
+  fs=$(curl -sf --max-time 3 "$SERVER_URL/api/v2/feishu/status" 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin)["mode"])' 2>/dev/null || echo "-")
   c_info "飞书: $fs"
   # 密钥状态
   (cd "$SERVER" && bash scripts/secrets.sh status 2>/dev/null | sed 's/^/• /') || true

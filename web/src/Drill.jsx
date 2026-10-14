@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { IconMicrophone } from '@tabler/icons-react';
+import { api } from './api.js';
 
 // P3 强化营：SM-2 复习队列（主动回忆）+ 情景题（深度随档案等级，快模型）
 // R4.3 WP7：到期聚合视图（今日含逾期 / 未来 7 天分布）+ 队列全量展示带到期日
@@ -17,17 +18,15 @@ export default function Drill() {
 
   useEffect(() => { load(); }, []);
   async function load() {
-    setQueue(await fetch('/api/drill/queue').then((r) => r.json()));
-    setStats(await fetch('/api/drill/stats').then((r) => r.json()));
-    setDue(await fetch('/api/drill/due-summary').then((r) => r.json()));
+    setQueue(await api.get('/api/v2/drill/queue'));
+    setStats(await api.get('/api/v2/drill/stats'));
+    setDue(await api.get('/api/v2/drill/due-summary'));
     setCur(null); setShowBack(false);
     setFeyn({ open: false, text: '', res: null, busy: false });
   }
 
   async function grade(g) {
-    await fetch(`/api/drill/cards/${cur.id}/review`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grade: g }),
-    }).then((r) => r.json());
+    await api.post(`/api/v2/drill/cards/${cur.id}/review`, { grade: g });
     load();
   }
 
@@ -35,24 +34,21 @@ export default function Drill() {
   async function submitFeyn() {
     if (!cur || !feyn.text.trim() || feyn.busy) return;
     setFeyn((s) => ({ ...s, busy: true }));
-    const r = await fetch(`/api/drill/cards/${cur.id}/feynman`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ explanation: feyn.text }),
-    }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+    const r = await api.post(`/api/v2/drill/cards/${cur.id}/feynman`, { explanation: feyn.text })
+      .catch((e) => ({ error: String(e) }));
     setFeyn((s) => ({ ...s, res: r, busy: false }));
   }
   async function newQuiz() {
     setBusy(true); setResult(null); setAnswer('');
     const domains = ['risk', 'benefits', 'stakeholder', 'plan_control', 'reporting'];
     const d = domains[Math.floor(Math.random() * domains.length)];
-    setQuiz(await fetch(`/api/drill/scenario/${d}`, { method: 'POST' }).then((r) => r.json()));
+    setQuiz(await api.post(`/api/v2/drill/scenario/${d}`));
     setBusy(false);
   }
   async function submit() {
     if (!answer.trim() || !quiz) return;
     setBusy(true);
-    const r = await fetch(`/api/drill/scenario/${quiz.id}/answer`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }),
-    }).then((r) => r.json());
+    const r = await api.post(`/api/v2/drill/scenario/${quiz.id}/answer`, { answer });
     setResult(r); setBusy(false);
   }
 
@@ -60,7 +56,7 @@ export default function Drill() {
   const total = stats.reduce((a, s) => a + s.total, 0);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, height: '100%', overflow: 'hidden' }}>
+    <div className="split" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, height: '100%', overflow: 'hidden' }}>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
         <h3>今日复习队列（SM-2 间隔重复 · 主动回忆：先答后看）</h3>
         {due && (
@@ -96,7 +92,7 @@ export default function Drill() {
             <div className="rowitem" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
               <b>{cur.front}</b>
               {showBack ? (
-                <div style={{ marginTop: 8, padding: 10, background: 'var(--paper)', borderRadius: 8, fontSize: 12.5, lineHeight: 1.7 }}>
+                <div style={{ marginTop: 8, padding: 10, background: 'var(--paper)', borderRadius: 'var(--r-md)', fontSize: 12.5, lineHeight: 1.7 }}>
                   {cur.back}
                   <div style={{ marginTop: 6, color: 'var(--navy)', fontSize: 11.5 }}>来源：{cur.sources}</div>
                 </div>
@@ -132,7 +128,7 @@ export default function Drill() {
                 {feyn.res && (feyn.res.error
                   ? <div className="notice danger">{feyn.res.error}</div>
                   : (
-                    <div style={{ padding: 10, borderRadius: 8, background: feyn.res.qualified ? 'var(--ok-soft)' : 'var(--danger-soft)' }}>
+                    <div style={{ padding: 10, borderRadius: 'var(--r-md)', background: feyn.res.qualified ? 'var(--ok-soft)' : 'var(--danger-soft)' }}>
                       <b>{feyn.res.qualified ? `✓ 达成 M3 能教授${feyn.res.evidence_id ? ` · 证据 #${feyn.res.evidence_id} 已归档成长记录` : ''}` : '× 尚未达到能教授标准'}</b>
                       <div style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.7 }}>{feyn.res.comment}</div>
                       <div style={{ marginTop: 8 }}><button className="mini" onClick={() => setFeyn({ open: false, text: '', res: null, busy: false })}>关闭</button></div>
@@ -160,7 +156,7 @@ export default function Drill() {
               </div>
             )}
             {result && (
-              <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: result.grade === 'good' ? 'var(--ok-soft)' : result.grade === 'ok' ? 'var(--warn-soft)' : 'var(--danger-soft)' }}>
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 'var(--r-md)', background: result.grade === 'good' ? 'var(--ok-soft)' : result.grade === 'ok' ? 'var(--warn-soft)' : 'var(--danger-soft)' }}>
                 <b>评定：{result.grade === 'good' ? '优秀' : result.grade === 'ok' ? '合格' : '待提升'}</b>
                 <div style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.7 }}>{result.feedback}</div>
                 <div style={{ marginTop: 8 }}><button className="mini" onClick={() => { setQuiz(null); setResult(null); }}>再来一道</button></div>

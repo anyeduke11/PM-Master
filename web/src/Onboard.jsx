@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { api } from './api.js';
 
 // F0 冷启动向导（PRD 6.4）：导入式（真实 LLM 结构化）/ 问答式（快速定位）/ 跳过
 const LVN = { 1: '辅助人员', 2: '初级', 3: '中级', 4: '高级', 5: '专家级' };
@@ -21,10 +22,7 @@ export default function Onboard({ onDone }) {
   async function doImport() {
     setBusy(true); setErr('');
     try {
-      const d = await fetch('/api/onboard/import', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      }).then((r) => r.json());
+      const d = await api.post('/api/v2/profile/onboard/import', { text });
       if (d.statusCode) throw new Error(d.message);
       setDraft(d); setLevel(d.suggested_level); setTrack(d.track ?? 'project');
     } catch (e) { setErr(e.message); }
@@ -35,13 +33,11 @@ export default function Onboard({ onDone }) {
     const body = branch === 'quick'
       ? { level, track }
       : { level, track, projects: draft?.projects ?? [], experience_stats: draft?.experience_stats ?? {} };
-    const p = await fetch('/api/onboard/commit', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    }).then((r) => r.json());
+    const p = await api.post('/api/v2/profile/onboard/commit', body);
     setBusy(false); onDone(p);
   }
   async function skip() {
-    const p = await fetch('/api/onboard/skip', { method: 'POST' }).then((r) => r.json());
+    const p = await api.post('/api/v2/profile/onboard/skip');
     onDone(p);
   }
 
@@ -58,10 +54,10 @@ export default function Onboard({ onDone }) {
         {!branch && !draft && (
           <div style={{ display: 'grid', gap: 10 }}>
             <button className="ob-pick pri" onClick={() => setBranch('import')}>
-              粘贴履历（推荐）——AI 结构化为档案初稿，含项目/年限/等级建议
+              粘贴履历（推荐）：AI 结构化为档案初稿，含项目/年限/等级建议
             </button>
             <button className="ob-pick" onClick={() => setBranch('quick')}>
-              快速问答——3 个问题，短板原则定位
+              快速问答：3 个问题，短板原则定位
             </button>
             <button className="ob-pick mini" onClick={skip}>跳过 · 沿用当前档案（{LVN[4]}）</button>
           </div>

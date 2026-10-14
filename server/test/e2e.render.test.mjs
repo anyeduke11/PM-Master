@@ -79,7 +79,7 @@ test('F1 冷启动：跳过向导 → 主壳与 8 个 tab 渲染', async () => {
   await page.goto(WEB);
   await page.getByRole('button', { name: /跳过 · 沿用当前档案/ }).click();
   await page.locator('header h1', { hasText: 'PM-Master · 项目经理成长工作台' }).waitFor();
-  assert.equal(await tab('教练室').count(), 1);
+  assert.equal(await tab('演练场').count(), 1);
   assert.equal(await tab('项目工作台').count(), 1);
   assert.equal(await tab('风险评估').count(), 1);
   assert.equal(await tab('成长记录').count(), 1);
@@ -92,14 +92,14 @@ test('F1 冷启动：跳过向导 → 主壳与 8 个 tab 渲染', async () => {
 });
 
 test('F2 Growth 页渲染：闭环卡五格数字与 API 一致（D1-D3 浏览器层）', async () => {
-  const rec = await j(`${API}/api/growth/recalc`, { method: 'POST' });   // 先造 assessments/links/tasks
+  const rec = await j(`${API}/api/v2/growth/recalc`, { method: 'POST' });   // 先造 assessments/links/tasks
   assert.ok(rec.links.created > 0, `重算应建链：${JSON.stringify(rec.links).slice(0, 80)}`);
   // F1 跳过向导后 Onboard onDone 已 setTab('growth')（App.jsx），此刻需先切走再切回强制 remount + load()
   await tab('项目工作台').click();
   await tab('成长路径').click();
   const card = page.locator('.card', { hasText: '成长闭环' });
   await card.locator('b').first().waitFor();
-  const links = await j(`${API}/api/growth/links`);
+  const links = await j(`${API}/api/v2/growth/links`);
   const nums = await card.locator('b').allTextContents();   // [全部, 差距, 训练中, 已闭环, 闭环率]
   assert.deepEqual(nums.slice(0, 4).map(Number), [links.total, links.open, links.trained, links.closed],
     `五格数字与 API 不一致：页面=${JSON.stringify(nums)} API=${JSON.stringify(links)}`);
@@ -112,11 +112,11 @@ test('F2 Growth 页渲染：闭环卡五格数字与 API 一致（D1-D3 浏览�
 
 test('F3 知识库页渲染：掌握度矩阵四档计数与 API 一致', async () => {
   await tab('知识库').click();
-  await page.locator('h3', { hasText: '掌握度矩阵 · M0—M3' }).waitFor();
+  await page.locator('h3', { hasText: '掌握度矩阵 · M0-M3' }).waitFor();   // v5.17.2 em-dash 清零后 UI 文案为连字符
   await page.waitForFunction(() => document.querySelectorAll('.mx-cell').length === 4, null, { timeout: 20_000 });
   const cells = page.locator('.mx-cell');
   assert.equal(await cells.count(), 4, '应渲染 M0-M3 四档');
-  const mx = await j(`${API}/api/itto/mastery-matrix`);
+  const mx = await j(`${API}/api/v2/itto/mastery-matrix`);
   const texts = await cells.allTextContents();
   mx.counts.forEach((c, i) => {
     assert.ok(texts[i].includes(`${c.key} ${c.name}`), `第 ${i} 档应为 ${c.key}：${texts[i]}`);
@@ -131,10 +131,10 @@ test('F3 知识库页渲染：掌握度矩阵四档计数与 API 一致', async 
 });
 
 test('F4 WP5 通知点击转已读：角标 → 面板 → 条目样式与角标联动', async () => {
-  // 通知走 scheduler monthly_report job（deliverReport 投递；/api/growth/monthly-report 只生成不投递）
-  const run = await j(`${API}/api/scheduler/run/monthly_report`, { method: 'POST' });
+  // 通知走 scheduler monthly_report job（deliverReport 投递；/api/v2/growth/monthly-report 只生成不投递）
+  const run = await j(`${API}/api/v2/scheduler/run/monthly_report`, { method: 'POST' });
   assert.ok(!run.last_error, `job 应成功：${JSON.stringify(run).slice(0, 160)}`);
-  const before0 = await j(`${API}/api/notifications`);
+  const before0 = await j(`${API}/api/v2/notifications`);
   assert.ok(before0.unread >= 1, '月报投递应产生未读通知');
 
   await page.locator('.bell-btn').click();
@@ -152,7 +152,7 @@ test('F4 WP5 通知点击转已读：角标 → 面板 → 条目样式与角标
     return el?.classList.contains('read');
   });
   assert.equal(await panel.locator('.bell-dot').count(), before0.unread - 1, '点击后该条蓝点应消失');
-  const afterUnread = (await j(`${API}/api/notifications`)).unread;
+  const afterUnread = (await j(`${API}/api/v2/notifications`)).unread;
   assert.equal(afterUnread, before0.unread - 1, 'API 未读数应减一');
   if (afterUnread > 0) assert.equal(await page.locator('.bell-badge').textContent(), String(afterUnread), `角标应从 ${badge0} 变为 ${afterUnread}`);
   else assert.equal(await page.locator('.bell-badge').count(), 0, '未读清零后角标应消失');
@@ -161,7 +161,7 @@ test('F4 WP5 通知点击转已读：角标 → 面板 → 条目样式与角标
 // ============ R5.2 WP5：三条 LLM 交互路径（mock） ============
 
 test('F5 教练对话流：场景开场 → /skip 推进至 E → 归档落证据', async () => {
-  await tab('教练室').click();
+  await tab('演练场').click();
   const sc = page.locator('.sc', { hasText: '向上汇报' }).first();   // report 场景（L4 档全解锁）
   await sc.waitFor();
   await sc.click();
@@ -183,13 +183,13 @@ test('F6 强化营答题：卡片复习 good → due_today 减一 + 聚合条联
   await tab('强化营').click();
   const counter = page.locator('small', { hasText: /待复习 \d+ 张/ }).first();
   await counter.waitFor();
-  const s0 = await j(`${API}/api/drill/due-summary`);
+  const s0 = await j(`${API}/api/v2/drill/due-summary`);
   assert.ok(s0.due_today > 0, `种子卡应产生到期卡：${s0.due_today}`);
   await page.locator('.card', { hasText: '今日复习队列' }).locator('.rowitem').first().click();
   await page.getByRole('button', { name: '先心里作答，再看答案' }).click();
   await page.getByRole('button', { name: /清晰/ }).click();          // good → 间隔拉长，移出今日到期
   // 断言对象是 due_today（队列长度受 LIMIT 恒定，非正确信号）：API -1 + 聚合条同步（R6.8 pill→badge）
-  await until(async () => (await j(`${API}/api/drill/due-summary`)).due_today === s0.due_today - 1);
+  await until(async () => (await j(`${API}/api/v2/drill/due-summary`)).due_today === s0.due_today - 1);
   await page.locator('.badge', { hasText: `今日应复习 ${s0.due_today - 1}` }).waitFor({ timeout: 10_000 });
 });
 
@@ -247,31 +247,38 @@ test('F8 WP1 移动端响应式：375×812 窄屏强化营/成长路径无横向
 });
 
 // ============ R6.6 AI 面整合：侧栏为唯一 AI 面（流式 + 持久化 + 意图链路） ============
+// R7.1 P3 起助手侧栏默认收缩（仅 FAB 常驻，FAB/⌘K 唤起）——用例经 openAsst() 先唤起再操作；
+// 对话历史 mount 即载入（与展开无关），故唤起后可直接断言刷新持久化。
+async function openAsst() {
+  const fab = page.locator('.asst-fab');
+  if (await fab.count()) await fab.click();   // 收缩态点 FAB 唤起；已展开则跳过
+  await page.locator('.asst').waitFor();
+}
 
 test('F9 R6.6 侧栏流式问答 + 刷新后历史持久化', async () => {
-  // 桌面侧栏默认展开（F1 已过初始化）
+  await openAsst();   // 默认收缩 → FAB 唤起
   const asst = page.locator('.asst');
-  await asst.waitFor();
   const input = asst.locator('.asst-bar input');
   await input.fill('什么是关键路径？');
   await input.press('Enter');
   // 流式回显：mock 回复逐字写入（waitFor 阶段断言完整句）
   await until(async () => ((await asst.locator('.asst-m.ai').last().textContent()) ?? '').includes('mock provider'));
   await until(async () => ((await asst.locator('.asst-bar button').textContent()) ?? '') === '发送', 15_000);   // busy 结束
-  await until(async () => (await j(`${API}/api/assistant/messages`)).some((m) => m.role === 'ai'), 10_000);      // 落库完成
-  // 刷新 → 历史自库载入（持久化锚）
+  await until(async () => (await j(`${API}/api/v2/assistant/messages`)).some((m) => m.role === 'ai'), 10_000);      // 落库完成
+  // 刷新 → 历史自库载入（持久化锚）；刷新后回到收缩态，需再唤起
   await page.reload();
   await page.locator('header h1').waitFor();
-  await page.locator('.asst').waitFor();
+  await openAsst();
   await page.locator('.asst-m.me', { hasText: '什么是关键路径？' }).waitFor({ timeout: 10_000 });
   assert.ok(await page.locator('.asst-m', { hasText: 'mock provider' }).count() >= 1, '刷新后 ai 回复应保留');
 });
 
 test('F10 R6.6 侧栏意图链路：登记风险计划→执行 + 清空双确认', async () => {
   // 造项目（parse 无 pageContext 项目时以「最新项目」解析 project_id）
-  const proj = await j(`${API}/api/projects`, {
+  const proj = await j(`${API}/api/v2/projects`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '整合验收桩项目' }),
   });
+  await openAsst();
   const asst = page.locator('.asst');
   const input = asst.locator('.asst-bar input');
   await input.fill('登记风险：核心工程师离职');
@@ -281,11 +288,12 @@ test('F10 R6.6 侧栏意图链路：登记风险计划→执行 + 清空双确�
   assert.ok((await plan.textContent()).includes('核心工程师离职'), '计划卡应含风险标题（mock 意图分支）');
   await plan.getByRole('button', { name: '确认执行' }).click();
   await asst.locator('.asst-note.ok').first().waitFor();   // 已执行 ✓
-  const risks = await j(`${API}/api/projects/${proj.id}/risks`);
+  const risks = await j(`${API}/api/v2/projects/${proj.id}/risks`);
   assert.ok(risks.some((r) => String(r.title).includes('核心工程师离职')), `风险应落库：${JSON.stringify(risks).slice(0, 120)}`);
   // R6.6b 计划卡冻结回放：刷新后重现（已执行态、无操作按钮——令牌不落库）
   await page.reload();
   await page.locator('header h1').waitFor();
+  await openAsst();
   const frozen = page.locator('.asst-plan');
   await frozen.first().waitFor({ timeout: 10_000 });
   const frozenText = (await frozen.first().textContent()) ?? '';
@@ -299,23 +307,25 @@ test('F10 R6.6 侧栏意图链路：登记风险计划→执行 + 清空双确�
   assert.ok(await box.getByRole('button', { name: '确认清空' }).isDisabled(), '未输入「清空」前应禁用');
   await box.locator('input').fill('清空');
   await box.getByRole('button', { name: '确认清空' }).click();
-  await until(async () => (await j(`${API}/api/assistant/messages`)).length === 0, 10_000);
+  await until(async () => (await j(`${API}/api/v2/assistant/messages`)).length === 0, 10_000);
   // 页内历史气泡清空：UI 重渲染与库清空跨通道，轮询等待（断言读早会竞态——取证后定稿）
   await until(async () => (await asst.locator('.asst-m.me').count()) === 0, 5_000);
 });
 
 test('F11 R6.6b 未确认计划卡刷新后冻结回放（创建即落库，令牌不落库）', async () => {
-  await j(`${API}/api/projects`, {
+  await j(`${API}/api/v2/projects`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '冻结回放桩项目' }),
   });
+  await openAsst();
   const asst = page.locator('.asst');
   const input = asst.locator('.asst-bar input');
   await input.fill('登记风险：冻结回放桩风险');
   await input.press('Enter');
   await asst.locator('.asst-plan').waitFor();
-  // 不执行直接刷新：pending 卡以冻结态回放（无操作按钮 + 未确认标注）
+  // 不执行直接刷新：pending 卡以冻结态回放（无操作按钮 + 未确认标注）；刷新后收缩态先唤起
   await page.reload();
-  await page.locator('.asst').waitFor();
+  await page.locator('header h1').waitFor();   // React 挂载锚：FAB 渲染晚于 hydration
+  await openAsst();
   const plan = page.locator('.asst-plan').first();
   await plan.waitFor({ timeout: 10_000 });
   const text = (await plan.textContent()) ?? '';

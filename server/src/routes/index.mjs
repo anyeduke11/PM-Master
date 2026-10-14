@@ -1,0 +1,54 @@
+// 路由装配入口：按原 index.mjs 线性顺序逐个注册各域路由（行为不变）
+import { register as standard } from './standard.routes.mjs';
+import { register as profile } from './profile.routes.mjs';
+import { register as chat } from './chat.routes.mjs';
+import { register as coach } from './coach.routes.mjs';
+import { register as project } from './project.routes.mjs';
+import { register as records } from './records.routes.mjs';
+import { register as feishu } from './feishu.routes.mjs';
+import { register as exportx } from './export.routes.mjs';
+import { register as feedback } from './feedback.routes.mjs';
+import { register as drill } from './drill.routes.mjs';
+import { register as growth } from './growth.routes.mjs';
+import { register as settings } from './settings.routes.mjs';
+import { register as importx } from './importx.routes.mjs';
+import { register as patrol } from './patrol.routes.mjs';
+import { register as prompts } from './prompts.routes.mjs';
+import { register as memory } from './memory.routes.mjs';
+import { register as skills } from './skills.routes.mjs';
+import { register as mcp } from './mcp.routes.mjs';
+import { register as tasks } from './tasks.routes.mjs';
+import { register as scheduler } from '../scheduler.mjs';
+import { register as notifications } from './notifications.routes.mjs';
+import { register as assistant } from './assistant.routes.mjs';
+import { register as ra } from './ra.routes.mjs';
+import { register as itto } from './itto.routes.mjs';
+import { register as health } from './health.routes.mjs';
+
+export function registerRoutes(app) {
+  standard(app);
+  profile(app);
+  chat(app);
+  coach(app);
+  project(app);
+  records(app);
+  feishu(app);
+  exportx(app);
+  feedback(app);
+  drill(app);
+  growth(app);
+  settings(app);
+  importx(app);
+  patrol(app);
+  prompts(app);
+  memory(app);
+  skills(app);
+  mcp(app);
+  tasks(app);
+  scheduler(app);
+  notifications(app);
+  assistant(app);
+  ra(app);
+  itto(app);
+  health(app);
+}

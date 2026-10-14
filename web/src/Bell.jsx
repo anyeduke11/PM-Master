@@ -1,6 +1,7 @@
 // R3.2 通知中心前端：铃铛 + 未读角标 + 下拉列表（月报/定时任务失败的统一入口）
 import React, { useEffect, useRef, useState } from 'react';
 import { IconBell } from '@tabler/icons-react';
+import { api } from './api.js';
 
 const KIND_ICON = { info: '·', report: '◈', error: '!' };
 
@@ -11,7 +12,7 @@ export default function Bell() {
   const pollMs = useRef(60_000);   // R7.0 P1：轮询间隔可配置（ui.notify_poll_s），pm-settings 事件即时更新
 
   async function load() {
-    const d = await fetch('/api/notifications?limit=30').then((r) => r.json());
+    const d = await api.get('/api/v2/notifications?limit=30');
     setData(d);
   }
 
@@ -20,7 +21,7 @@ export default function Bell() {
     let timer = null;
     const arm = () => { clearInterval(timer); timer = setInterval(load, pollMs.current); };
     // 初始读取设置 + 监听保存广播（设置页 PUT 后 dispatch pm-settings）
-    fetch('/api/settings').then((r) => r.json()).then((list) => {
+    api.get('/api/v2/settings').then((list) => {
       const s = list.find((x) => x.key === 'ui.notify_poll_s');
       if (s?.effective) { pollMs.current = s.effective * 1000; arm(); }
     }).catch(() => {});
@@ -41,12 +42,12 @@ export default function Bell() {
   }, [open]);
 
   async function readOne(n) {
-    if (!n.read) await fetch(`/api/notifications/${n.id}/read`, { method: 'POST' });
+    if (!n.read) await api.post(`/api/v2/notifications/${n.id}/read`);
     load();
   }
 
   async function readAll() {
-    await fetch('/api/notifications/read-all', { method: 'POST' });
+    await api.post('/api/v2/notifications/read-all');
     load();
   }
 

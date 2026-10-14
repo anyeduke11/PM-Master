@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { IconRefresh, IconFileText } from '@tabler/icons-react';
 import { toast } from './ui.jsx';
+import { api } from './api.js';
 
 // P3 成长路径：ECharts 雷达（29指标/17领域双视图，目标级要求线）+ 等级轨 + F3 重算 + 任务
 // R2.3：成长闭环链（差距→训练→闭环）+ 月报生成/飞书推送
@@ -38,7 +39,7 @@ export default function Growth() {
     return () => window.removeEventListener('pm-theme', fn);
   }, [scores, history]);
 
-  // R4.3 WP6：三维等级 + composite 随月度重算的历史趋势（纯展示，读现有 /api/growth/history）
+  // R4.3 WP6：三维等级 + composite 随月度重算的历史趋势（纯展示，读现有 /api/v2/growth/history）
   function drawTrend() {
     if (!trendRef.current) return;
     if (!trendChartRef.current) trendChartRef.current = echarts.init(trendRef.current);
@@ -61,20 +62,20 @@ export default function Growth() {
   }
 
   async function load() {
-    setProfile(await fetch('/api/profile').then((r) => r.json()));
-    setScores(await fetch('/api/growth/scores').then((r) => r.json()));
-    setHistory(await fetch('/api/growth/history').then((r) => r.json()));
-    setTasks(await fetch('/api/tasks').then((r) => r.json()));
-    setLinks(await fetch('/api/growth/links').then((r) => r.json()));
+    setProfile(await api.get('/api/v2/profile'));
+    setScores(await api.get('/api/v2/growth/scores'));
+    setHistory(await api.get('/api/v2/growth/history'));
+    setTasks(await api.get('/api/v2/drill/tasks'));
+    setLinks(await api.get('/api/v2/growth/links'));
   }
   async function recalc() {
     setBusy(true);
-    const r = await fetch('/api/growth/recalc', { method: 'POST' }).then((r) => r.json());
+    const r = await api.post('/api/v2/growth/recalc');
     setScores(r); await load(); setBusy(false);
   }
   async function genReport() {
     setBusy(true);
-    const r = await fetch('/api/growth/monthly-report', { method: 'POST' }).then((r) => r.json());
+    const r = await fetch('/api/v2/growth/monthly-report', { method: 'POST' }).then((r) => r.json());
     setReport(r.report?.markdown ?? null);
     if (r.error) toast(r.error, 'err');
     setBusy(false);
@@ -82,7 +83,7 @@ export default function Growth() {
   async function pushReport() {
     if (!report) return;
     setBusy(true);
-    const r = await fetch('/api/feishu/export-doc', {
+    const r = await fetch('/api/v2/feishu/export-doc', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: `PM-Master 成长月报 ${new Date().toISOString().slice(0, 10)}`, markdown: report }),
     }).then((r) => r.json());
@@ -90,10 +91,7 @@ export default function Growth() {
     setBusy(false);
   }
   async function toggleTask(id, status) {
-    await fetch(`/api/tasks/${id}/status`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: status === 'open' ? 'done' : 'open' }),
-    });
+    await api.post(`/api/v2/drill/tasks/${id}/status`, { status: status === 'open' ? 'done' : 'open' });
     load();
   }
 
@@ -148,7 +146,7 @@ export default function Growth() {
   ] : [];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 14, height: '100%', overflow: 'auto' }}>
+    <div className="split" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 14, height: '100%', overflow: 'auto' }}>
       <div className="card">
         <h3>
           能力雷达（对照 GB/T 41831 目标级要求）
@@ -163,7 +161,7 @@ export default function Growth() {
               const cur = scores?.composite ?? profile.current_level;
               return (
                 <div key={lv} style={{
-                  flex: 1, textAlign: 'center', padding: '5px 0', borderRadius: 6,
+                  flex: 1, textAlign: 'center', padding: '5px 0', borderRadius: 'var(--r-sm)',
                   background: lv < cur ? 'var(--ok-soft)' : lv === cur ? 'var(--accent)' : 'var(--surface-2)',
                   color: lv === cur ? 'var(--on-accent)' : lv < cur ? 'var(--ok)' : 'var(--ink3)',
                   fontSize: 11, fontWeight: lv === cur ? 700 : 400,
@@ -217,17 +215,17 @@ export default function Growth() {
             </span>
           </h3>
           {report
-            ? <pre style={{ maxHeight: 150, overflow: 'auto', fontSize: 11, whiteSpace: 'pre-wrap', background: 'var(--paper)', padding: 8, borderRadius: 6 }}>{report}</pre>
+            ? <pre style={{ maxHeight: 150, overflow: 'auto', fontSize: 11, whiteSpace: 'pre-wrap', background: 'var(--paper)', padding: 8, borderRadius: 'var(--r-sm)' }}>{report}</pre>
             : links && (
               <>
                 <div style={{ display: 'flex', gap: 8, margin: '2px 0 8px' }}>
                   {[['全部', links.total, 'var(--ink)'], ['差距', links.open, 'var(--warn)'], ['训练中', links.trained, 'var(--navy)'], ['已闭环', links.closed, 'var(--ok)']].map(([n, v, c]) => (
-                    <div key={n} style={{ flex: 1, textAlign: 'center', padding: '6px 0', background: 'var(--paper)', borderRadius: 6 }}>
+                    <div key={n} style={{ flex: 1, textAlign: 'center', padding: '6px 0', background: 'var(--paper)', borderRadius: 'var(--r-sm)' }}>
                       <b style={{ fontSize: 17, color: c }}>{v}</b>
                       <div style={{ fontSize: 10.5, color: 'var(--ink3)' }}>{n}</div>
                     </div>
                   ))}
-                  <div style={{ flex: 1, textAlign: 'center', padding: '6px 0', background: 'var(--paper)', borderRadius: 6 }}>
+                  <div style={{ flex: 1, textAlign: 'center', padding: '6px 0', background: 'var(--paper)', borderRadius: 'var(--r-sm)' }}>
                     <b style={{ fontSize: 17, color: 'var(--cin)' }}>{links.closure_rate == null ? '-' : `${Math.round(links.closure_rate * 100)}%`}</b>
                     <div style={{ fontSize: 10.5, color: 'var(--ink3)' }}>闭环率</div>
                   </div>
@@ -236,7 +234,7 @@ export default function Growth() {
                   {links.items.slice(0, 12).map((l) => (
                     <div key={l.id} className="rowitem" style={{ padding: '3px 0' }}>
                       <span style={{
-                        fontSize: 10, padding: '1px 6px', borderRadius: 4, color: 'var(--on-accent)',
+                        fontSize: 10, padding: '1px 6px', borderRadius: 'var(--r-xs)', color: 'var(--on-accent)',
                         background: l.status === 'closed' ? 'var(--ok)' : l.status === 'trained' ? 'var(--accent-2)' : 'var(--warn)',
                       }}>{LINK_ST[l.status]}</span>
                       <span style={{ flex: 1, fontSize: 12 }}>{l.label}</span>

@@ -6,6 +6,7 @@ import { levelRequirements } from './standard.mjs';
 import { db } from './db.mjs';
 import { cfg } from './settings.mjs';   // R7.0 P1：LLM 配置热切换（KV > env），密钥/base_url 仍走 env
 import { skillEnabled } from './skills.mjs';   // R7.0 P5：技能注册表 kill-switch（skills 仅依赖 db，无环）
+import { memoryBlock } from './memory.mjs';   // R7.1 P3：分层记忆注入组装（③ 复利闭环；纯代码；与 memory.mjs 的循环引用为良性——仅绑定函数声明）
 
 // 观测落库（失败不反噬主流程）：purpose=调用用途, ms 含 429 退避等待; tokens={prompt_tokens,completion_tokens,total_tokens}|null（R5.2 WP2）
 function logCall(purpose, provider, model, ms, ok, error, tokens = null) {
@@ -53,20 +54,26 @@ const STRICT_HINT = {
   strict: '评定与反馈从严：高门槛认可，重点指出差距与改进方向。',
 };
 
-export function buildSystemPrompt(profile) {
+// ================= 统一角色（PRD v5.18.0 §15.0：教练角色即 AI 助手） =================
+// 三路 system 首行统一为同一人设（chat=buildSystemPrompt / 教练=COACH_RULES / 助手=buildAssistantPrompt），
+// 面差异保留在后续行；单一身份 = 共享同一画像、同一份记忆、同一条上下文注入链（memoryBlock）与同一人设（persona.*）。
+export const ROLE_LINE = '你是 PM-Master 工作台的「AI 教练助手」（GB/T 41831-2022 五级体系）：教练面负责 GROW 演练与辅导，助手面负责执行与问答，两面共享同一画像、同一份记忆与同一条上下文注入链。';
+
+export function buildSystemPrompt(profile, { pageContext = {}, scenario = null, recordHits = false } = {}) {
   // 动态上下文注入（PRD AI native 原则3）：等级+目标+剧本，约百 token
-  // R7.0 P4：persona（称呼/风格/严格度）+ 蒸馏画像（summary）+ 工作记忆 top5（置顶优先）；可经 persona.memory_on 关闭
+  // R7.1 P1：persona + 蒸馏画像（summary）+ 分层工作记忆（域门控/场景感知/配额；见 docs/MEMORY-ARCHITECTURE.md）；可经 persona.memory_on 关闭
+  // R7.1 P2：recordHits=true（仅真实 LLM 注入路径传）时，本次注入记一次「复用命中」并顺带跑晋升/衰减维护；预览路径不记账
   const req = levelRequirements(profile.target_level, profile.track);
   const journey = req.adaptation.journey[`L${profile.current_level}`] ?? '';
   const lines = [
-    '你是 PM-Master 工作台的 AI 教练，服务项目管理专业人员的成长（GB/T 41831-2022 五级体系）。',
+    ROLE_LINE,
     `用户档案：当前 L${profile.current_level}，目标 L${profile.target_level}，通道 ${profile.track === 'pmo' ? 'PMO' : '项目/项目群组'}，成长剧本「${journey}」。`,
     '回答要结合用户等级定制深度：知识解释对齐该级认知要求（know/apply/integrate），建议对齐该级证据要求。',
   ];
   if (cfg('persona.memory_on')) {
-    if (profile.summary) lines.push(`【用户画像】${String(profile.summary).slice(0, 500)}`);
-    const mem = db.prepare('SELECT content FROM memories ORDER BY pinned DESC, id DESC LIMIT 5').all();
-    if (mem.length) lines.push(`【工作记忆】\n${mem.map((m) => `- ${String(m.content).slice(0, 300)}`).join('\n')}`);
+    // ③ 记忆注入组装统一收敛到 memoryBlock（画像 + 场景感知分层记忆；DRY；chat/教练/助手三路复用）
+    const block = memoryBlock({ profile, pageContext, scenario, recordHits });
+    if (block) lines.push(block);
   }
   lines.push(`【交互设定】称呼用户为「${cfg('persona.address') || '你'}」。${STYLE_HINT[cfg('persona.style')] ?? STYLE_HINT.coach}${STRICT_HINT[cfg('persona.strictness')] ?? STRICT_HINT.standard}`);
   return lines.join('\n');
@@ -74,16 +81,17 @@ export function buildSystemPrompt(profile) {
 
 // ================= R7.0 P4 画像蒸馏 + 记忆提取 =================
 // 蒸馏：档案+能力分+近期证据 → 一段可注入上下文的画像（强模型，低频高价值；产出人可编辑后再入库）
-export async function profileDistillChat({ profile, scores, evidence }) {
+export async function profileDistillChat({ profile, scores, evidence, memories = [] }) {
   const out = await callJSON({
     system: [
-      '你是 PM-Master 画像蒸馏器。基于给定档案、三维能力分与近期证据清单，提炼一段「AI 教练持续了解用户」的画像：',
+      '你是 PM-Master 画像蒸馏器。基于给定档案、三维能力分、近期证据清单与长期记忆，提炼一段「AI 教练持续了解用户」的画像：',
       '≤200 字中文，第三人称「该用户」开头；覆盖：角色与等级现状、强项（引用高分指标）、当前短板与目标差距、',
       '工作重心（从证据项目/场景归纳）、一条培养建议。只依据给定数据，不臆造；数据缺失的维度直接省略。',
+      '若有「长期记忆」清单，工作重心与短板优先以之为据（比一次性证据更稳定）。',
       '严格只输出 JSON：{"summary":"画像正文"}',
     ].join('\n'),
     profile,
-    history: [{ role: 'user', content: JSON.stringify({ profile, scores, evidence }) }],
+    history: [{ role: 'user', content: JSON.stringify({ profile, scores, evidence, memories }) }],
     maxTokens: 2000, purpose: 'profile_distill',
   });
   return { summary: String(out?.summary ?? '').slice(0, 500) };
@@ -98,7 +106,6 @@ export async function memoryExtractChat({ scenario, artifactSummary, ratings }) 
       '每条 ≤80 字中文、独立成条、第三人称（「该用户…」）；最多 3 条，没有值得记的给空数组。',
       '严格只输出 JSON：{"memories":["…"]}',
     ].join('\n'),
-    profile: { current_level: 4, target_level: 5, track: 'project' },
     history: [{ role: 'user', content: JSON.stringify({ scenario, artifact_summary: artifactSummary, ratings }) }],
     maxTokens: 1200, model: cfg('llm.model_fast'), purpose: 'memory_extract',
   });
@@ -106,7 +113,7 @@ export async function memoryExtractChat({ scenario, artifactSummary, ratings }) 
 }
 
 // 流式生成：onDelta(token) 逐段回调；返回完整文本（WP8：chat 用途观测；R6.2 WP2：SSE usage 计 token，网关不支持则 NULL）
-export async function streamChat({ messages, profile }, onDelta) {
+export async function streamChat({ messages, profile, pageContext = {} }, onDelta) {
   const provider = cfg('llm.provider');
   const t0 = Date.now();
   let usage = null;
@@ -114,7 +121,7 @@ export async function streamChat({ messages, profile }, onDelta) {
     // R7.0 P5 kill-switch：助手流式回复同样受技能注册表停用控制（purpose='chat'）
     if (!skillEnabled('chat')) throw new Error('「chat」AI 能力已在设置·技能注册表停用');
     const full = provider === 'openai'
-      ? await streamOpenAI(messages, profile, onDelta, (u) => { usage = u; })
+      ? await streamOpenAI(messages, profile, onDelta, (u) => { usage = u; }, pageContext)
       : await streamMock(messages, profile, onDelta);
     logCall('chat', provider, provider === 'openai' ? cfg('llm.model') : null, Date.now() - t0, true, null, usage);
     return full;
@@ -138,31 +145,18 @@ async function streamMock(messages, profile, onDelta) {
   return reply;
 }
 
-async function streamOpenAI(messages, profile, onDelta, usageSink, attempt = 1) {
-  const base = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
+async function streamOpenAI(messages, profile, onDelta, usageSink, pageContext = {}) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY 未配置');
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: cfg('llm.model'),
-      stream: true,
-      // R6.2 WP2：请求 usage 回传（OpenAI 规范 stream_options.include_usage；不支持的网关会忽略或报错——报错则降级去重试不带该参数）
-      stream_options: { include_usage: true },
-      messages: [{ role: 'system', content: buildSystemPrompt(profile) }, ...messages],
-    }),
-  });
+  const res = await postChatCompletions({
+    model: cfg('llm.model'),
+    stream: true,
+    // R6.2 WP2：请求 usage 回传（OpenAI 规范 stream_options.include_usage；不支持的网关会忽略）
+    stream_options: { include_usage: true },
+    messages: [{ role: 'system', content: buildSystemPrompt(profile, { pageContext, recordHits: true }) }, ...messages],
+  }, { purpose: 'chat', model: cfg('llm.model'), isFast: false });
   if (!res.ok) {
-    // 429 限流：与 callJSON 同款分级退避（快/强无区分，chat 走强模型）后单次重试；限流事件落观测行
-    // R6.3 bug 修复：attempt 限一次重试（持续 429 下不再无限递归挂住 SSE 连接，第二次直接抛错走前端 error 事件显式失败）
-    // 退避时长 OPENAI_BACKOFF_MS 可注入（默认 65s 生产窗；回归测试用毫秒级验证有界性）
-    if (res.status === 429 && attempt < 2) {
-      const backoff = cfg('llm.backoff_ms');
-      logCall('chat', 'openai', cfg('llm.model'), backoff, 0, `HTTP 429 限流（${Math.round(backoff / 1000)}s 退避后重试）`);
-      await new Promise((r) => setTimeout(r, backoff));
-      return streamOpenAI(messages, profile, onDelta, usageSink, 2);
-    }
+    // 429 已在 postChatCompletions 内有界重试一次；持续 429 在此显式抛错（R6.3：不再无限递归挂住 SSE 连接）
     throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 200)}`);
   }
   let full = '';
@@ -182,15 +176,52 @@ async function streamOpenAI(messages, profile, onDelta, usageSink, attempt = 1) 
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 429 退避时长：快模型池（显式传 model，如 OPENAI_MODEL_FAST）走 15s 短窗；强模型走 llm.backoff_ms（默认 65s，可注入）
+function backoffMs(isFast) {
+  return isFast ? 15_000 : cfg('llm.backoff_ms');
+}
+
+// 限流事件落观测行（限流从不可见变可观测，WP8）
+function note429(purpose, model, backoff) {
+  logCall(purpose, 'openai', model, backoff, 0, `HTTP 429 限流（${Math.round(backoff / 1000)}s 退避后重试）`);
+}
+
+// 统一 LLM HTTP 出口：POST {base}/chat/completions；429 单次有界退避重试（持续 429 时第二次响应原样返回，由调用方显式抛错）
+// timeoutMs 仅用于非流式请求（流式 SSE 长连接不设总超时）
+async function postChatCompletions(body, { purpose = 'unknown', model = null, isFast = false, timeoutMs = 0 } = {}) {
+  const base = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
+  const url = `${base}/chat/completions`;
+  const opts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: JSON.stringify(body),
+  };
+  if (timeoutMs) opts.signal = AbortSignal.timeout(timeoutMs);
+  let res = await fetch(url, opts);
+  if (res.status === 429) {
+    const backoff = backoffMs(isFast);
+    note429(purpose, model, backoff);
+    await sleep(backoff);
+    res = await fetch(url, opts);
+  }
+  return res;
+}
+
+// 非流式请求总超时（挂起的网关不再永久占住请求线程）；env 可调，0 视为默认
+const requestTimeout = () => Number(process.env.OPENAI_TIMEOUT_MS) || 120_000;
+
 // ================= 教练结构化调用（P1） =================
-const COACH_RULES = [
-  '你是 PM-Master 的 GROW 教练。遵守教练式原则：不跳跃、不代答、不评判；关键节点复述确认；用提问引导。',
+export const COACH_RULES = [
+  ROLE_LINE,
+  '当前为教练面（GROW 演练）：遵守教练式原则：不跳跃、不代答、不评判；关键节点复述确认；用提问引导。',
   '当前处于 GROW 某一步骤，你只负责：① 对用户刚才的回答给出简短教练式回应（确认+提炼，≤80字）；② 输出下一步骤的提问（按给定 stepInfo 主题定制，贴合用户情境）。',
   '嵌入思维模型自然提示（如二阶思维/BATNA/金字塔原理），每轮至多1个。',
   '严格只输出 JSON：{"reply":"对回答的回应","collected":{"键":"提炼的事实/目标/根因等"},"ask":"下一步提问"}',
 ].join('\n');
 
 export async function coachChat({ profile, scenario, phase, stepInfo, history, userContent }) {
+  // ③ 记忆注入：教练会话为真实低频路径，记复用命中（recordHits:true，含晋升/衰减维护）
+  const block = memoryBlock({ profile, scenario, recordHits: true });
   // W-OUT：生成完整方案（大输出）
   if (userContent === '__GENERATE_WILL__') {
     const will = await callJSON({
@@ -198,13 +229,14 @@ export async function coachChat({ profile, scenario, phase, stepInfo, history, u
         COACH_RULES.split('\n').slice(0, 1)[0],
         '现在生成 W 阶段完整产物：结构化行动方案（动作/时间/责任人 SMART）+ 关键话术（开场/主体/收尾）+ 检查清单。用 Markdown，≤300字，直接可用。',
         '严格只输出 JSON：{"will":"完整方案文本"}',
-      ].join('\n'),
+        block,
+      ].filter(Boolean).join('\n'),
       profile, history, purpose: 'coach_will',
     });
     return { will: will?.will ?? null };
   }
   const out = await callJSON({
-    system: `${COACH_RULES}\n场景：${scenario.name}（组合 ${Array.isArray(scenario.combo) ? scenario.combo.join('+') : scenario.combo}）；当前步骤主题：${stepInfo || phase}`,
+    system: [`${COACH_RULES}\n场景：${scenario.name}（组合 ${Array.isArray(scenario.combo) ? scenario.combo.join('+') : scenario.combo}）；当前步骤主题：${stepInfo || phase}`, block].filter(Boolean).join('\n'),
     profile, history, purpose: 'coach',
   });
   // 键名容错：部分模型输出 message/response 代替 reply
@@ -213,6 +245,7 @@ export async function coachChat({ profile, scenario, phase, stepInfo, history, u
 }
 
 export async function ratingChat({ profile, scenario, history }) {
+  // 刻意不注入 memoryBlock：E 评定须以「会话内」证据为准，引入长期记忆会污染评定口径（记忆只用于辅导，不用于打分）
   const out = await callJSON({
     system: [
       '你是 PM-Master 的会话评定器（E 阶段）。基于会话全程，仅对给定指标逐个评定：良好/合格/待提升。',
@@ -300,7 +333,6 @@ export async function raExtractChat({ scenario, standard, asset_label, extra_fie
       `只抽取资料有依据的内容，不臆造；每条附 basis(依据原文片段≤30字)。资产≤15条、风险项≤12条。`,
       '严格只输出 JSON：{"assets":[...],"findings":[...],"summary":"资料概况一句话"}',
     ].join('\n'),
-    profile: { current_level: 4, target_level: 5, track: 'project' },
     history: [{ role: 'user', content: String(text).slice(0, 8000) }],
     maxTokens: 3000, model: cfg('llm.model_fast'), purpose: 'ra_extract',
   });
@@ -318,7 +350,6 @@ export async function raReportChat({ detail }) {
       '风险值引用给定数据不得改动；语言专业，符合金融监管报送口径；长度 600-900 字。',
       '严格只输出 JSON：{"markdown":"报告全文"}',
     ].join('\n'),
-    profile: { current_level: 4, target_level: 5, track: 'project' },
     history: [{ role: 'user', content: JSON.stringify(detail) }],
     maxTokens: 4000, purpose: 'ra_report',
   });
@@ -326,7 +357,8 @@ export async function raReportChat({ detail }) {
 }
 
 // ================= R2.1 全局 AI 助手（意图判定 + 自由问答） =================
-export async function assistantChat({ text, pageContext, profile }) {
+// 助手面 system 组装（纯函数，供 assistantChat 复用与「统一角色」验收测试断言单一注入链）
+export function buildAssistantPrompt({ pageContext, profile }) {
   const intentsHint = [
     'risk.create(登记风险:title必填,project,probability,impact,strategy)',
     'risk.escalate(升级风险:risk必填,project)',
@@ -340,16 +372,23 @@ export async function assistantChat({ text, pageContext, profile }) {
     'stats.query(查询成长差距/项目统计:topic,project)',
     'card.search(搜知识卡片:q必填)',
   ].join('\n');
+  return [
+    ROLE_LINE,
+    '当前为助手面：判断用户输入是否匹配以下某个操作意图，并抽取参数：',
+    intentsHint,
+    '规则：',
+    '- 匹配则输出 {"intent":"意图id","params":{...}}；数字参数（probability/impact/pv/ev/ac）转数字。',
+    '- 不匹配（概念提问/闲聊/咨询）则 intent=null，并在 reply 用简洁中文直接回答（可结合用户档案与当前页面上下文）。',
+    `- 当前页面上下文：${pageContext?.tab ?? '未知'} 页${pageContext?.project_name ? `，正查看项目「${pageContext.project_name}」` : ''}——用户说"这个项目"即指它。`,
+    // ③ 记忆注入：助手为高频意图解析路径，recordHits:false 避免 hits 通胀/过快晋升（仅供应答参考，不计复用）
+    memoryBlock({ profile, pageContext, recordHits: false }),
+    '严格只输出 JSON：{"intent":"...|null","params":{...},"reply":"..."}',
+  ].filter(Boolean).join('\n');
+}
+
+export async function assistantChat({ text, pageContext, profile }) {
   const out = await callJSON({
-    system: [
-      '你是 PM-Master 工作台的全局 AI 助手。判断用户输入是否匹配以下某个操作意图，并抽取参数：',
-      intentsHint,
-      '规则：',
-      '- 匹配则输出 {"intent":"意图id","params":{...}}；数字参数（probability/impact/pv/ev/ac）转数字。',
-      '- 不匹配（概念提问/闲聊/咨询）则 intent=null，并在 reply 用简洁中文直接回答（可结合用户档案与当前页面上下文）。',
-      `- 当前页面上下文：${pageContext?.tab ?? '未知'} 页${pageContext?.project_name ? `，正查看项目「${pageContext.project_name}」` : ''}——用户说"这个项目"即指它。`,
-      '严格只输出 JSON：{"intent":"...|null","params":{...},"reply":"..."}',
-    ].join('\n'),
+    system: buildAssistantPrompt({ pageContext, profile }),
     profile,
     history: [{ role: 'user', content: String(text).slice(0, 2000) }],
     maxTokens: 1500, model: cfg('llm.model_fast'), purpose: 'assistant_intent',
@@ -375,7 +414,6 @@ export async function importExtractChat({ kind, text }) {
       '3) 无法解析的行跳过并在 warnings 中说明原因（≤30字）。',
       '严格只输出 JSON：{"rows":[...],"warnings":["..."]}',
     ].join('\n'),
-    profile: { current_level: 4, target_level: 5, track: 'project' },
     history: [{ role: 'user', content: JSON.stringify({ kind, text: String(text).slice(0, 30000) }) }],
     maxTokens: 3000, model: cfg('llm.model_fast'), purpose: 'import_extract',
   });
@@ -391,7 +429,6 @@ export async function patrolDigestChat({ date, counts, findings }) {
       '语气专业克制，不用感叹号，不编造清单外的数据。',
       '严格只输出 JSON：{"digest":"简报正文"}',
     ].join('\n'),
-    profile: { current_level: 4, target_level: 5, track: 'project' },
     history: [{ role: 'user', content: JSON.stringify({ date, counts, findings }) }],
     maxTokens: 1200, model: cfg('llm.model_fast'), purpose: 'patrol_digest',
   });
@@ -507,7 +544,6 @@ export async function onboardChat({ text }) {
       '"experience_stats":{"work_years":数字,"normal_projects_as_lead":数字,"complex_projects_as_lead":数字,"programs_as_lead":数字,"pmo_years":数字,"knowledge_contributions":数字}}',
       'experience_stats 只填文本可推断的键；推断不了的键省略。projects 至多 10 条。',
     ].join('\n'),
-    profile: { current_level: 1, target_level: 2, track: 'project' },   // 占位档案（此调用不注入等级偏好）
     history: [{ role: 'user', content: String(text).slice(0, 6000) }],
     maxTokens: 3000, purpose: 'onboard',
   });
@@ -550,7 +586,8 @@ function mockJSON(system, profile, history) {
   const last = [...history].reverse().find((m) => m.role === 'user');
   const inWill = system.includes('__') || system.includes('完整方案');
   // R6.6 助手意图确定性分支（仅 mock：无密钥 e2e 可跑通「计划→确认→执行」全链路）
-  if (system.includes('全局 AI 助手') && /登记风险/.test(last?.content ?? '')) {
+  // 匹配助手面独有短语（统一角色后不再用旧角色名「全局 AI 助手」判定路径）
+  if (system.includes('操作意图') && /登记风险/.test(last?.content ?? '')) {
     return { intent: 'risk.create', params: { title: String(last.content).split(/[：:]/)[1]?.trim().slice(0, 40) || '（mock）风险标题' } };
   }
   // R7.0 P4 画像蒸馏/记忆提取 mock 分支（J9/J10 回归锚：无密钥环境确定性产出）
@@ -630,12 +667,15 @@ function mockJSON(system, profile, history) {
 }
 
 async function callOpenAIJSON({ system, profile, history, maxTokens, model, purpose, usageSink }) {
-  const base = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY 未配置（server/.env）');
+  // profile 可选：无档案的抽取/撰写类调用不注入等级偏好（避免用占位等级误导模型）
+  const profileLine = profile
+    ? `\n\n【用户档案】L${profile.current_level}→L${profile.target_level}，通道 ${profile.track}。回答深度对齐该等级。`
+    : '';
   const body = {
     model: model ?? cfg('llm.model'),
     messages: [
-      { role: 'system', content: `${system}\n\n【用户档案】L${profile.current_level}→L${profile.target_level}，通道 ${profile.track}。回答深度对齐该等级。` },
+      { role: 'system', content: `${system}${profileLine}` },
       ...history.map((m) => ({ role: m.role === 'ai' ? 'assistant' : m.role, content: m.content })),
     ],
     temperature: 0.4,
@@ -644,31 +684,12 @@ async function callOpenAIJSON({ system, profile, history, maxTokens, model, purp
   };
   // 仅在网关支持时启用 json_object（SenseNova token 网关支持；部分严格网关可关）
   if (cfg('llm.json_mode')) body.response_format = { type: 'json_object' };
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: JSON.stringify(body),
-  });
-  // 429 限流：按模型 RPM 窗退避重试（强模型走 cfg('llm.backoff_ms') 默认 65s；快模型 15s）；限流事件落观测行（WP8：从不可见变可观测）
-  if (res.status === 429) {
-    const backoff = model ? 15000 : cfg('llm.backoff_ms');
-    logCall(purpose ?? 'unknown', 'openai', body.model, backoff, 0, `HTTP 429 限流（${backoff / 1000}s 退避后重试）`);
-    await new Promise((r) => setTimeout(r, backoff));
-    const res2 = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: JSON.stringify(body),
-    });
-    if (!res2.ok) throw new Error(`LLM ${res2.status}: ${(await res2.text()).slice(0, 200)}`);
-    const j2 = await res2.json();
-    usageSink?.(j2.usage ?? null);
-    return looseJSON(j2.choices?.[0]?.message?.content ?? '');
-  }
+  // 429 限流在 postChatCompletions 内按模型池退避一次并落观测行；持续限流在此显式抛错
+  const res = await postChatCompletions(body, { purpose, model: body.model, isFast: Boolean(model), timeoutMs: requestTimeout() });
   if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const j = await res.json();
   usageSink?.(j.usage ?? null);   // R5.2 WP2：usage 回传（部分网关可能缺省 → NULL）
-  const content = j.choices?.[0]?.message?.content ?? '';
-  return looseJSON(content);
+  return looseJSON(j.choices?.[0]?.message?.content ?? '');
 }
 
 // 宽松解析：剥 markdown 围栏 / 截取首尾大括号 / 容忍前后杂文

@@ -1,10 +1,12 @@
 # PM-Master 工作台 · Agent 规则
 
-本文件供 AI 助手（Claude Code 等）在本仓库工作时遵循。
+本文件供 AI 编码助手（Claude Code 等）在本仓库工作时遵循。
 
 ## 项目定位
 
 单用户、等级无关（L1-L5）的项目经理成长工作台。评级唯一依据是 `standard/gbt41831.yaml`（GB/T 41831-2022 结构化）——**任何等级相关功能禁止硬编码**，必须读 YAML。
+
+产品内嵌的 AI 角色**唯一且统一**：**「AI 教练助手」**（教练角色即 AI 助手）——为用户提供全周期项目管理能力提升支持，含教练面（演练·辅导）与助手面（执行·问答）两个能力面，共享单一身份与入口。角色定义与能力边界见 [PRD.md](./PRD.md) §15、验收标准见 [docs/ACCEPTANCE-SPEC.md](./docs/ACCEPTANCE-SPEC.md)。
 
 ## 硬性约束
 
@@ -19,6 +21,8 @@
 ```bash
 cd server && npm run dev          # 服务 :8735（自动处理密钥）
 cd web && npm run dev             # 前端 :8736（代理 /api）
+cd server && npm run test:acceptance   # 验收回归（单元 + HTTP 边界；功能改动必过）
+cd server && npm run test:e2e          # 浏览器渲染回归（自起隔离 server+vite，本机 Chrome）
 cd server && npm run secrets -- status   # 密钥状态
 node --check <file>               # 语法校验（提交前必过）
 ```
@@ -39,4 +43,4 @@ node --check <file>               # 语法校验（提交前必过）
 ## 修改流程
 
 改 standard YAML（评级口径）需先对照 `GB-T41831-2022_ocr_raw.txt` 或原 PDF 校对；改后跑：
-`curl -s localhost:8735/api/requirements/<lv>` 验证装载。功能改动同步更新 PRD.md 版本记录。
+`curl -s localhost:8735/api/v2/standard/requirements/<lv>` 验证装载。功能改动同步更新 PRD.md 版本记录。

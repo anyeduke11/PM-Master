@@ -9,6 +9,8 @@
 !/standard/
 !/GB-T41831-2022_ocr_raw.txt
 !/demo/
+!/docs/
+/docs/archive/
 !/server/
 /server/*
 !/server/src/

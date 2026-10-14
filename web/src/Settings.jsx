@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconSettings, IconRobot, IconChartDots3, IconToggleLeft, IconExternalLink, IconDownload, IconTrendingUp, IconSparkles, IconRadar, IconBolt, IconMessageCode, IconPlus, IconPencil, IconTrash, IconUserCircle, IconBrain, IconPin, IconRefresh, IconPuzzle, IconPlug, IconCloudUpload, IconCopy } from '@tabler/icons-react';
 import { toast, Modal, Field } from './ui.jsx';
+import { api } from './api.js';
 
 // R7.0 P1 设置中心：A 系统状态 / B LLM 与模型（热切换）/ C 可观测性 / E 功能开关
 // R7.0 P2：K 数据流入（导入历史与说明）/ G 工具频率（使用排行/冷门推荐/训练任务）
@@ -25,6 +26,11 @@ const SECTIONS = [
 
 const SRC_LABEL = { db: 'DB 覆盖', env: 'env', default: '默认' };
 
+// R7.1 P4：记忆分层徽标/筛选中文字典（与 memory.mjs 维度枚举对齐）
+const MEM_SCOPE_LABEL = { user: '个人', project: '项目' };
+const MEM_HORIZON_LABEL = { long: '长期', short: '短期' };
+const MEM_CATEGORY_LABEL = { identity: '身份', style: '风格', preference: '偏好', goal: '目标', weakness: '短板', fact: '事实', decision: '决策', risk: '风险', stakeholder: '干系人', task: '任务' };
+
 const SEV_LABEL = { high: '高危', mid: '中危', low: '低危' };
 
 export default function Settings({ onNavigate, onCoachStart }) {
@@ -48,6 +54,8 @@ export default function Settings({ onNavigate, onCoachStart }) {
   const [ctx, setCtx] = useState(null);             // R7.0 P4 H 区：上下文预览
   const [memInput, setMemInput] = useState('');     // 手记输入
   const [memDel, setMemDel] = useState(null);       // 待删除确认记忆 id
+  const [memFilter, setMemFilter] = useState({ scope: '', horizon: '', category: '', level: '' });  // R7.1 P4：分层筛选
+  const [maintaining, setMaintaining] = useState(false);  // R7.1 P4：维护（晋升/衰减）进行中
   const [summaryEdit, setSummaryEdit] = useState(null);  // F 区：画像编辑文本（null=非编辑态）
   const [distilling, setDistilling] = useState(false);
   const [skills, setSkills] = useState(null);       // R7.0 P5 L 区：技能注册表
@@ -59,19 +67,15 @@ export default function Settings({ onNavigate, onCoachStart }) {
   const [fsRef, setFsRef] = useState('');           // 飞书文档链接
   const [fsDoc, setFsDoc] = useState(null);         // 读入结果 {title, markdown}
   const [fsBusy, setFsBusy] = useState(false);
+  const [fsDel, setFsDel] = useState(false);        // 飞书删除二次确认态
   const refs = useRef({});
 
-  async function j(url, opts) {
-    const r = await fetch(url, opts);
-    if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.message ?? `HTTP ${r.status}`);
-    return r.json();
-  }
   async function loadAll() {
     try {
       const [sys, set, st, lg, us, rp, sc, pm, mm, cx, sk, mc, fs] = await Promise.all([
-        j('/api/settings/system'), j('/api/settings'), j('/api/llm/stats'),
-        j('/api/import/logs'), j('/api/tools/usage'), j('/api/patrol/reports'), j('/api/scheduler'), j('/api/prompts'),
-        j('/api/memories'), j('/api/context/preview'), j('/api/skills'), j('/api/mcp'), j('/api/feishu/status'),
+        api.get('/api/v2/settings/system'), api.get('/api/v2/settings'), api.get('/api/v2/growth/llm/stats'),
+        api.get('/api/v2/import/logs'), api.get('/api/v2/tools/usage'), api.get('/api/v2/patrol/reports'), api.get('/api/v2/scheduler'), api.get('/api/v2/settings/prompts'),
+        api.get('/api/v2/settings/memories'), api.get('/api/v2/context/preview'), api.get('/api/v2/settings/skills'), api.get('/api/v2/settings/mcp'), api.get('/api/v2/feishu/status'),
       ]);
       setSystem(sys); setSettings(set); setStats(st); setLogs(lg); setUsage(us);
       setReports(rp); setSched(sc); setPrompts(pm); setMemories(mm); setCtx(cx); setDraft({});
@@ -85,7 +89,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
     try {
       const qs = new URLSearchParams({ days: String(d) });
       if (p) qs.set('purpose', p);
-      setStats(await j(`/api/llm/stats?${qs}`));
+      setStats(await api.get(`/api/v2/growth/llm/stats?${qs}`));
     } catch (e) { toast(`观测刷新失败：${e.message}`, 'err'); }
   }
   const purposes = useMemo(() => (stats?.by_purpose ?? []).map((r) => r.purpose).filter((v, i, a) => a.indexOf(v) === i).sort(), [stats]);
@@ -99,9 +103,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
     if (!Object.keys(body).length) return;
     setSaving(true);
     try {
-      const next = await j('/api/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
+      const next = await api.put('/api/v2/settings', body);
       setSettings(next);
       if (!patch) setDraft({});
       else setDraft((d) => { const c = { ...d }; for (const k of Object.keys(body)) delete c[k]; return c; });
@@ -119,11 +121,9 @@ export default function Settings({ onNavigate, onCoachStart }) {
   // G 区：冷门工具 → 训练任务（服务端幂等；成功后刷新排行）
   async function assignTask(tool) {
     try {
-      const r = await j('/api/tools/usage/task', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool_id: tool.id }),
-      });
+      const r = await api.post('/api/v2/tools/usage/task', { tool_id: tool.id });
       toast(r.existing ? `「${tool.name}」训练任务已在清单中` : `已为「${tool.name}」生成训练任务`, 'ok');
-      setUsage(await j('/api/tools/usage'));
+      setUsage(await api.get('/api/v2/tools/usage'));
     } catch (e) { toast(`生成失败：${e.message}`, 'err'); }
   }
 
@@ -131,10 +131,10 @@ export default function Settings({ onNavigate, onCoachStart }) {
   async function runPatrol() {
     setRunningPatrol(true);
     try {
-      const r = await j('/api/scheduler/run/patrol', { method: 'POST' });
+      const r = await api.post('/api/v2/scheduler/run/patrol');
       toast(`巡检完成：${r.result.findings} 项发现${r.result.notified ? '，已投通知' : '（无发现，静默）'}`, 'ok', 4200);
-      setReports(await j('/api/patrol/reports'));
-      setSched(await j('/api/scheduler'));
+      setReports(await api.get('/api/v2/patrol/reports'));
+      setSched(await api.get('/api/v2/scheduler'));
     } catch (e) { toast(`巡检失败：${e.message}`, 'err'); }
     setRunningPatrol(false);
   }
@@ -149,9 +149,9 @@ export default function Settings({ onNavigate, onCoachStart }) {
   async function savePrompt() {
     if (!pEdit?.title?.trim() || !pEdit?.content?.trim()) return toast('标题与内容必填', 'warn');
     try {
-      if (pEdit.id) await j(`/api/prompts/${pEdit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pEdit) });
-      else await j('/api/prompts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pEdit) });
-      setPrompts(await j('/api/prompts'));
+      if (pEdit.id) await api.put(`/api/v2/settings/prompts/${pEdit.id}`, pEdit);
+      else await api.post('/api/v2/settings/prompts', pEdit);
+      setPrompts(await api.get('/api/v2/settings/prompts'));
       setPEdit(null);
       broadcastPrompts();
       toast('提示词已保存', 'ok');
@@ -159,8 +159,8 @@ export default function Settings({ onNavigate, onCoachStart }) {
   }
   async function removePrompt(id) {
     try {
-      await j(`/api/prompts/${id}`, { method: 'DELETE' });
-      setPrompts(await j('/api/prompts'));
+      await api.del(`/api/v2/settings/prompts/${id}`);
+      setPrompts(await api.get('/api/v2/settings/prompts'));
       setPDel(null);
       broadcastPrompts();
       toast('已删除', 'ok');
@@ -168,77 +168,99 @@ export default function Settings({ onNavigate, onCoachStart }) {
   }
   async function togglePrompt(p) {
     try {
-      await j(`/api/prompts/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !p.enabled }) });
-      setPrompts(await j('/api/prompts'));
+      await api.put(`/api/v2/settings/prompts/${p.id}`, { enabled: !p.enabled });
+      setPrompts(await api.get('/api/v2/settings/prompts'));
       broadcastPrompts();
     } catch (e) { toast(e.message, 'err'); }
   }
 
-  // —— R7.0 P4 F 区：画像蒸馏 + 编辑保存（写 user_profile.summary，下次 AI 调用即注入） ——
+  // R7.0 P4 F 区：画像蒸馏 + 编辑保存（写 user_profile.summary，下次 AI 调用即注入）
   async function runDistill() {
     setDistilling(true);
     try {
-      const r = await j('/api/profile/distill', { method: 'POST' });
+      const r = await api.post('/api/v2/profile/distill');
       toast('画像已蒸馏并写入（可编辑后保存）', 'ok');
-      setCtx(await j('/api/context/preview'));
+      setCtx(await api.get('/api/v2/context/preview'));
       setSummaryEdit(r.summary);
     } catch (e) { toast(`蒸馏失败：${e.message}`, 'err'); }
     setDistilling(false);
   }
   async function saveSummary() {
     try {
-      await j('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: summaryEdit || null }) });
-      setCtx(await j('/api/context/preview'));
+      await api.put('/api/v2/profile', { summary: summaryEdit || null });
+      setCtx(await api.get('/api/v2/context/preview'));
       setSummaryEdit(null);
       toast('画像已保存（下次 AI 调用生效）', 'ok');
     } catch (e) { toast(`保存失败：${e.message}`, 'err'); }
   }
 
-  // —— R7.0 P4 H 区：记忆条目 CRUD + 预览刷新 ——
+  // R7.1 P4 H 区：记忆条目 CRUD + 分层筛选 + 维护（晋升/衰减）+ 预览刷新
+  const memQuery = (f = memFilter) => {
+    const qs = new URLSearchParams();
+    for (const k of ['scope', 'horizon', 'category', 'level']) if (f[k]) qs.set(k, f[k]);
+    const s = qs.toString();
+    return `/api/v2/settings/memories${s ? `?${s}` : ''}`;
+  };
+  async function reloadMem(f = memFilter) {
+    setMemories(await api.get(memQuery(f)));
+    setCtx(await api.get('/api/v2/context/preview'));
+  }
   async function addMem() {
     const c = memInput.trim();
     if (!c) return;
     try {
-      await j('/api/memories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: c }) });
+      await api.post('/api/v2/settings/memories', { content: c });
       setMemInput('');
-      setMemories(await j('/api/memories'));
-      setCtx(await j('/api/context/preview'));
+      await reloadMem();
       toast('已记住', 'ok');
     } catch (e) { toast(e.message, 'err'); }
   }
   async function togglePin(m) {
     try {
-      await j(`/api/memories/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned: !m.pinned }) });
-      setMemories(await j('/api/memories'));
-      setCtx(await j('/api/context/preview'));
+      await api.put(`/api/v2/settings/memories/${m.id}`, { pinned: !m.pinned });
+      await reloadMem();
     } catch (e) { toast(e.message, 'err'); }
   }
   async function removeMem(id) {
     try {
-      await j(`/api/memories/${id}`, { method: 'DELETE' });
-      setMemories(await j('/api/memories'));
-      setCtx(await j('/api/context/preview'));
+      await api.del(`/api/v2/settings/memories/${id}`);
+      await reloadMem();
       setMemDel(null);
       toast('已删除', 'ok');
     } catch (e) { toast(`删除失败：${e.message}`, 'err'); }
   }
+  function changeFilter(k, v) {
+    const next = { ...memFilter, [k]: v };
+    setMemFilter(next);
+    reloadMem(next).catch((e) => toast(`筛选失败：${e.message}`, 'err'));
+  }
+  // 手动维护：晋升（short 命中≥3→long）+ 衰减（long 久未命中→降级）；真实注入路径亦自动触发，此按钮供显式观测
+  async function runMaintain() {
+    setMaintaining(true);
+    try {
+      const r = await api.post('/api/v2/memories/maintenance', {});
+      toast(`维护完成：晋升 ${r.promoted ?? 0} · 衰减 ${r.decayed ?? 0}`, 'ok');
+      await reloadMem();
+    } catch (e) { toast(`维护失败：${e.message}`, 'err'); }
+    setMaintaining(false);
+  }
 
-  // —— R7.0 P5 L 区：技能注册表 kill-switch ——
+  // R7.0 P5 L 区：技能注册表 kill-switch
   async function toggleSkill(s) {
     try {
-      await j(`/api/skills/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !s.enabled }) });
-      setSkills(await j('/api/skills'));
-      toast(s.enabled ? `已停用「${s.label}」——相关 AI 功能调用将明确报错` : `已启用「${s.label}」`, s.enabled ? 'warn' : 'ok', 4200);
+      await api.put(`/api/v2/settings/skills/${s.id}`, { enabled: !s.enabled });
+      setSkills(await api.get('/api/v2/settings/skills'));
+      toast(s.enabled ? `已停用「${s.label}」：相关 AI 功能调用将明确报错` : `已启用「${s.label}」`, s.enabled ? 'warn' : 'ok', 4200);
     } catch (e) { toast(e.message, 'err'); }
   }
 
-  // —— R7.0 P5 M 区：MCP 壳 + 飞书读入 ——
+  // R7.0 P5 M 区：MCP 壳 + 飞书读入
   async function saveMcp() {
     try {
-      const body = JSON.stringify(mcpEdit);
-      if (mcpEdit.id) await j(`/api/mcp/${mcpEdit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
-      else await j('/api/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-      setMcp(await j('/api/mcp'));
+      const body = mcpEdit;
+      if (mcpEdit.id) await api.put(`/api/v2/settings/mcp/${mcpEdit.id}`, body);
+      else await api.post('/api/v2/settings/mcp', body);
+      setMcp(await api.get('/api/v2/settings/mcp'));
       setMcpEdit(null);
       toast('已保存（登记壳：不参与运行时调用）', 'ok', 4200);
     } catch (e) { toast(e.message, 'err'); }
@@ -246,23 +268,23 @@ export default function Settings({ onNavigate, onCoachStart }) {
   async function runCheck(m) {
     setMcpBusy(m.id);
     try {
-      const r = await j(`/api/mcp/${m.id}/check`, { method: 'POST' });
-      setMcp(await j('/api/mcp'));
+      const r = await api.post(`/api/v2/settings/mcp/${m.id}/check`);
+      setMcp(await api.get('/api/v2/settings/mcp'));
       toast(r.message, r.status === 'available' ? 'ok' : 'warn', 5200);
     } catch (e) { toast(e.message, 'err'); }
     setMcpBusy(null);
   }
   async function removeMcp(id) {
     try {
-      await j(`/api/mcp/${id}`, { method: 'DELETE' });
-      setMcp(await j('/api/mcp'));
+      await api.del(`/api/v2/settings/mcp/${id}`);
+      setMcp(await api.get('/api/v2/settings/mcp'));
       setMcpDel(null);
     } catch (e) { toast(`删除失败：${e.message}`, 'err'); }
   }
   async function readFeishu() {
     setFsBusy(true);
     try {
-      const d = await j('/api/feishu/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: fsRef }) });
+      const d = await api.post('/api/v2/feishu/read', { ref: fsRef });
       setFsDoc(d);
       toast(`读入成功：《${d.title || '无标题'}》${d.blocks} 块`, 'ok');
     } catch (e) { toast(`读入失败：${e.message}`, 'err', 6000); }
@@ -272,8 +294,19 @@ export default function Settings({ onNavigate, onCoachStart }) {
     window.dispatchEvent(new CustomEvent('pm-import-prefill', { detail: { text: fsDoc.markdown, title: fsDoc.title } }));
     toast('已发送到导入向导（在工作台选择类型后 AI 抽取）', 'ok', 5200);
   }
+  // 删除云文档（移入回收站）：confirm 与 ref 同值 → 后端双确认；成功即清空读入预览
+  async function deleteFeishu() {
+    setFsBusy(true);
+    try {
+      await api.post('/api/v2/feishu/delete', { ref: fsRef, confirm: fsRef });
+      setFsDel(false);
+      setFsDoc(null);
+      toast('已删除云文档（移入回收站）', 'ok', 5200);
+    } catch (e) { toast(`删除失败：${e.message}`, 'err', 6000); }
+    setFsBusy(false);
+  }
 
-  // —— 单行渲染器：按 type 出控件；「恢复」按钮=写 null 删 KV 行 ——
+  // 单行渲染器：按 type 出控件；「恢复」按钮=写 null 删 KV 行
   function row(s) {
     const v = eff(s);
     const dirty = s.key in draft;
@@ -307,7 +340,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
   const dirtyCount = Object.keys(draft).length;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 14, height: '100%', overflow: 'hidden' }}>
+    <div className="split" style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 14, height: '100%', overflow: 'hidden' }}>
       {/* 左锚点导航 */}
       <nav className="card set-nav" style={{ padding: 10 }}>
         {SECTIONS.map(([id, label, Ic]) => (
@@ -403,7 +436,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
                     return (
                       <div key={d.date} title={`${d.date}：${d.calls} 次 · ${d.tokens ?? 0} tokens${d.errors ? ` · 失败 ${d.errors}` : ''}`}
                         style={{ flex: '0 1 24px', minWidth: 6, textAlign: 'center' }}>
-                        <div style={{ height: Math.max(3, ((d.tokens ?? 0) / max) * 44), background: d.errors ? 'var(--warn)' : 'var(--navy)', borderRadius: 2 }} />
+                        <div style={{ height: Math.max(3, ((d.tokens ?? 0) / max) * 44), background: d.errors ? 'var(--warn)' : 'var(--navy)', borderRadius: 'var(--r-xs)' }} />
                         <small style={{ fontSize: 8, color: 'var(--ink3)' }}>{d.date.slice(8)}</small>
                       </div>
                     );
@@ -448,8 +481,8 @@ export default function Settings({ onNavigate, onCoachStart }) {
           {settings && <div className="set-rows">{byGroup('feature').map(row)}</div>}
           <small style={{ color: 'var(--ink3)' }}>开关保存后即时广播生效（通知轮询/助手建议/动效）；默认主题仅影响未手动切换过的首次访问。</small>
           <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="mini" onClick={() => window.open('/api/export/json', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 数据快照 JSON</button>
-            <button className="mini" onClick={() => window.open('/api/scheduler', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 调度任务状态</button>
+            <button className="mini" onClick={() => window.open('/api/v2/export/json', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 数据快照 JSON</button>
+            <button className="mini" onClick={() => window.open('/api/v2/scheduler', '_blank')}><IconExternalLink size={12} stroke={1.8} /> 调度任务状态</button>
           </div>
         </div>
 
@@ -481,7 +514,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
                   <div style={{ marginTop: 6 }}><button className="mini" onClick={() => setSummaryEdit(ctx.summary)}><IconPencil size={11} stroke={1.8} /> 编辑</button></div>
                 </div>
               )
-              : <div className="empty">尚无画像——蒸馏后每次 AI 调用自动携带（约 100 token）；教练归档的记忆会自动补充细节</div>
+              : <div className="empty">尚无画像：蒸馏后每次 AI 调用自动携带（约 100 token）；教练归档的记忆会自动补充细节</div>
           ) : (
             <div>
               <textarea style={{ width: '100%', minHeight: 90 }} maxLength={500} value={summaryEdit}
@@ -495,7 +528,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
           )}
         </div>
 
-        {/* H 记忆与上下文（R7.0 P4）：条目级工作记忆 CRUD + 注入透明化预览 */}
+        {/* H 记忆与上下文（R7.0 P4 / R7.1 分层）：条目 CRUD + 分层筛选 + 复利指标 + 注入透明化 */}
         <div className="card" ref={(el) => (refs.current.memory = el)}>
           <h3>记忆与上下文</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -503,12 +536,43 @@ export default function Settings({ onNavigate, onCoachStart }) {
               value={memInput} onChange={(e) => setMemInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMem()} />
             <button className="pri" disabled={!memInput.trim()} onClick={addMem}>记住</button>
           </div>
+          {/* R7.1 P4：分层筛选（scope/horizon/category/level）+ 手动维护（晋升/衰减） */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+            <select value={memFilter.scope} onChange={(e) => changeFilter('scope', e.target.value)}>
+              <option value="">全部域</option>
+              {Object.entries(MEM_SCOPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}（{k}）</option>)}
+            </select>
+            <select value={memFilter.horizon} onChange={(e) => changeFilter('horizon', e.target.value)}>
+              <option value="">全部时效</option>
+              {Object.entries(MEM_HORIZON_LABEL).map(([k, v]) => <option key={k} value={k}>{v}（{k}）</option>)}
+            </select>
+            <select value={memFilter.category} onChange={(e) => changeFilter('category', e.target.value)}>
+              <option value="">全部分类</option>
+              {Object.entries(MEM_CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <select value={memFilter.level} onChange={(e) => changeFilter('level', e.target.value)}>
+              <option value="">全部层级</option>
+              <option value="1">L1 核心</option>
+              <option value="2">L2 重要</option>
+              <option value="3">L3 一般</option>
+            </select>
+            <button className="mini" style={{ marginLeft: 'auto', flex: 'none' }} disabled={maintaining} onClick={runMaintain}>
+              <IconRefresh size={12} stroke={1.8} /> {maintaining ? '维护中…' : '运行维护（晋升/衰减）'}
+            </button>
+          </div>
           {!memories && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
-          {memories && memories.length === 0 && <div className="empty">暂无记忆——教练会话归档时会自动提取（kind=coach），也可手动添加</div>}
+          {memories && memories.length === 0 && <div className="empty">本筛选下暂无记忆：教练会话归档自动提取（kind=coach）、项目事件自动沉淀（kind=project），也可手动添加</div>}
           {memories?.map((m) => (
             <div key={m.id} className="set-row">
               <span className="lab">{m.content}
-                <small>{m.kind === 'coach' ? '教练提取' : m.kind === 'chat' ? '对话提取' : '手记'} · {m.source ?? 'manual'}{m.pinned ? ' · 置顶' : ''}</small>
+                <small>
+                  {m.kind === 'coach' ? '教练提取' : m.kind === 'chat' ? '对话提取' : m.kind === 'project' ? '项目事件' : '手记'} · {m.source ?? 'manual'}
+                  {' '}<span className="badge neutral">{MEM_SCOPE_LABEL[m.scope] ?? m.scope}{m.scope === 'project' && m.project_id ? `#${m.project_id}` : ''}</span>
+                  {' '}<span className="badge neutral">{MEM_HORIZON_LABEL[m.horizon] ?? m.horizon}</span>
+                  {' '}<span className="badge neutral">L{m.level}</span>
+                  {' '}<span className="badge neutral">{MEM_CATEGORY_LABEL[m.category] ?? m.category}</span>
+                  {m.hits ? ` · 命中 ${m.hits}` : ''}{m.expires_at ? ` · 到期 ${String(m.expires_at).slice(0, 10)}` : ''}{m.pinned ? ' · 置顶' : ''}
+                </small>
               </span>
               <button className={`mini ${m.pinned ? 'pri' : ''}`} title={m.pinned ? '取消置顶' : '置顶（注入优先）'} onClick={() => togglePin(m)}><IconPin size={12} stroke={1.8} /></button>
               {memDel === m.id
@@ -519,10 +583,20 @@ export default function Settings({ onNavigate, onCoachStart }) {
           {ctx && (
             <>
               <hr className="divider" />
+              {/* 复利指标（全库视角，不受筛选影响）：分层分布 + 复用/晋升/过期观测 */}
+              <div className="kpi-row">
+                <div className="kpi"><b style={{ fontSize: 14 }}>{ctx.layered.by_scope.user}/{ctx.layered.by_scope.project}</b><span>域（个人/项目）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14 }}>{ctx.layered.by_horizon.long}/{ctx.layered.by_horizon.short}</b><span>时效（长期/短期）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14 }}>{ctx.layered.by_level.l1}/{ctx.layered.by_level.l2}/{ctx.layered.by_level.l3}</b><span>层级（L1/L2/L3）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: 'var(--accent)' }}>{ctx.layered.hits_total}</b><span>累计命中（复用）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: ctx.layered.promotable ? 'var(--warn)' : 'var(--ink3)' }}>{ctx.layered.promotable}</b><span>待晋升（短期命中≥3）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: ctx.layered.expired_short ? 'var(--warn)' : 'var(--ink3)' }}>{ctx.layered.expired_short}</b><span>已过期短期</span></div>
+              </div>
               <div className="kpi-row">
                 <div className="kpi"><b style={{ fontSize: 14 }}>L{ctx.profile.current_level} → L{ctx.profile.target_level}</b><span>档案（{ctx.profile.track === 'pmo' ? 'PMO' : '项目'}通道）</span></div>
                 <div className="kpi"><b style={{ fontSize: 14, color: ctx.summary ? 'var(--ok)' : 'var(--ink3)' }}>{ctx.summary ? '已生成' : '未生成'}</b><span>画像注入</span></div>
-                <div className="kpi"><b style={{ fontSize: 14, color: 'var(--accent)' }}>{ctx.memory_injection.injected}/{ctx.memory_injection.total}</b><span>记忆注入（top5 置顶优先）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: 'var(--accent)' }}>{ctx.memory_injection.injected}/{ctx.memory_injection.total}</b><span>记忆注入（分层配额 4/3/2）</span></div>
+                <div className="kpi"><b style={{ fontSize: 14, color: 'var(--ink)' }}>{ctx.injection ? `${Math.round(ctx.injection.ratio * 100)}%` : '—'}</b><span>注入占比（画像+记忆/系统提示）</span></div>
               </div>
               <details className="itto-ref">
                 <summary>查看实际注入的 system prompt（AI 现在知道什么）</summary>
@@ -571,7 +645,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
                </span>
                <button className="mini" disabled={mcpBusy === m.id} onClick={() => runCheck(m)}><IconBolt size={12} stroke={1.8} /> {mcpBusy === m.id ? '探测中' : '探测'}</button>
                <button type="button" className={`switch ${m.enabled ? 'on' : ''}`} role="switch" aria-checked={Boolean(m.enabled)} aria-label={`启用 ${m.name}`}
-                 onClick={async () => { try { await j(`/api/mcp/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !m.enabled }) }); setMcp(await j('/api/mcp')); } catch (e) { toast(e.message, 'err'); } }} />
+                 onClick={async () => { try { await api.put(`/api/v2/settings/mcp/${m.id}`, { enabled: !m.enabled }); setMcp(await api.get('/api/v2/settings/mcp')); } catch (e) { toast(e.message, 'err'); } }} />
                <button className="mini" title="编辑" onClick={() => setMcpEdit({ ...m })}><IconPencil size={12} stroke={1.8} /></button>
                {mcpDel === m.id
                  ? <><button className="mini danger" onClick={() => removeMcp(m.id)}>确认</button><button className="mini" onClick={() => setMcpDel(null)}>取消</button></>
@@ -586,7 +660,10 @@ export default function Settings({ onNavigate, onCoachStart }) {
            <div style={{ display: 'flex', gap: 8 }}>
              <input style={{ flex: 1 }} placeholder="粘贴飞书文档链接（/docx/ 或 /wiki/），读为 Markdown 送入导入向导"
                value={fsRef} onChange={(e) => setFsRef(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && fsRef.trim() && readFeishu()} disabled={!fsStatus?.configured} />
-             <button className="pri" disabled={!fsStatus?.configured || fsBusy || !fsRef.trim()} onClick={readFeishu}><IconCloudUpload size={13} stroke={1.8} /> {fsBusy ? '读取中…' : '读入'}</button>
+             <button className="pri" disabled={!fsStatus?.configured || fsBusy || !fsRef.trim()} onClick={readFeishu}><IconCloudUpload size={13} stroke={1.8} /> {fsBusy && !fsDel ? '读取中…' : '读入'}</button>
+             {fsDel
+               ? <><button className="mini danger" disabled={fsBusy} onClick={deleteFeishu}>{fsBusy ? '删除中…' : '确认删除'}</button><button className="mini" disabled={fsBusy} onClick={() => setFsDel(false)}>取消</button></>
+               : <button className="mini danger" title="删除该云文档（移入回收站，需应用开通 drive:drive 权限）" disabled={!fsStatus?.configured || fsBusy || !fsRef.trim()} onClick={() => setFsDel(true)}><IconTrash size={13} stroke={1.8} /></button>}
            </div>
            {!fsStatus?.configured && <small style={{ color: 'var(--ink3)' }}>在 server/.env 配置 FEISHU_APP_ID/FEISHU_APP_SECRET（应用需开通 docx 读权限）后启用；数据可先走「数据流入」粘贴通道。</small>}
            {fsDoc && (
@@ -646,7 +723,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
                 </div>
               )}
               <b style={{ fontSize: 12.5 }}>常用工具 Top {Math.min(usage.top.length, 15)}</b>
-              {usage.top.length === 0 && <div className="empty" style={{ margin: '6px 0' }}>尚无使用记录——去知识库对工具开四步教学或实操练习</div>}
+              {usage.top.length === 0 && <div className="empty" style={{ margin: '6px 0' }}>尚无使用记录：去知识库对工具开四步教学或实操练习</div>}
               {usage.top.length > 0 && (
                 <table className="tb" style={{ margin: '6px 0 12px' }}>
                   <thead><tr><th>工具</th><th>类别</th><th>使用</th><th>教学/实操</th><th>M 档</th><th>最近使用</th></tr></thead>
@@ -698,7 +775,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
             </div>
           )}
           {!reports && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
-          {reports && reports.length === 0 && <div className="empty">尚无巡检记录——点击「立即巡检」或等待每日 08:00 定时执行</div>}
+          {reports && reports.length === 0 && <div className="empty">尚无巡检记录：点击「立即巡检」或等待每日 08:00 定时执行</div>}
           {reports?.length > 0 && (
             <>
               <div className="notice">
@@ -736,7 +813,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
             </button>
           </h3>
           {!prompts && <div className="sk-row"><div className="skeleton" /><div className="skeleton" /></div>}
-          {prompts && prompts.length === 0 && <div className="empty">暂无提示词——把高频指令（如「给当前项目生成周报并分析成本偏差」）固化为一键按钮</div>}
+          {prompts && prompts.length === 0 && <div className="empty">暂无提示词：把高频指令（如「给当前项目生成周报并分析成本偏差」）固化为一键按钮</div>}
           {prompts?.map((p) => (
             <div key={p.id} className="set-row">
               <span className="lab">{p.title}<small>{p.content.length > 60 ? `${p.content.slice(0, 60)}…` : p.content}</small></span>
@@ -748,7 +825,7 @@ export default function Settings({ onNavigate, onCoachStart }) {
                 : <button className="mini" title="删除" onClick={() => setPDel(p.id)}><IconTrash size={12} stroke={1.8} /></button>}
             </div>
           ))}
-          <small style={{ color: 'var(--ink3)' }}>启用项显示在 AI 助手输入框上方（点击填入，可再编辑后发送）；按 sort 升序排列</small>
+          <small style={{ color: 'var(--ink3)' }}>启用项显示在教练输入框上方（点击填入，可再编辑后发送）；按 sort 升序排列</small>
         </div>
       </div>
 
